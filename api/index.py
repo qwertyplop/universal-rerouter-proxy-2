@@ -1,5 +1,4 @@
 import json
-import os
 import base64
 import urllib.request
 import urllib.error
@@ -7,27 +6,8 @@ import urllib.parse
 from datetime import datetime
 
 
-PUBLIC_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'public'))
-
-MIME_TYPES = {
-    '.html': 'text/html',
-    '.css': 'text/css',
-    '.js': 'application/javascript',
-    '.json': 'application/json',
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.gif': 'image/gif',
-    '.svg': 'image/svg+xml',
-    '.ico': 'image/x-icon',
-    '.woff2': 'font/woff2',
-    '.woff': 'font/woff',
-    '.ttf': 'font/ttf',
-}
-
 STATUS_TEXT = {
     200: 'OK', 201: 'Created', 204: 'No Content',
-    301: 'Moved Permanently', 302: 'Found', 304: 'Not Modified',
     400: 'Bad Request', 401: 'Unauthorized', 403: 'Forbidden', 404: 'Not Found',
     405: 'Method Not Allowed', 500: 'Internal Server Error',
     502: 'Bad Gateway', 503: 'Service Unavailable',
@@ -82,7 +62,6 @@ def proxy_request(path, query_string, headers_in, method, body):
         }
 
     models_mode = path in ('/sillytavern/models',)
-
     if models_mode:
         target_url = target_url.replace('/chat/completions', '/models')
 
@@ -122,7 +101,6 @@ def proxy_request(path, query_string, headers_in, method, body):
             headers=clean_headers,
             method=method or 'GET'
         )
-
         if json_body is not None:
             req.add_header('Content-Type', 'application/json')
 
@@ -131,7 +109,6 @@ def proxy_request(path, query_string, headers_in, method, body):
             for k, v in resp.getheaders():
                 if k.lower() not in {'content-encoding', 'content-length', 'transfer-encoding', 'connection'}:
                     resp_headers[k] = v
-
             return {
                 'status': resp.status,
                 'headers': resp_headers,
@@ -153,44 +130,11 @@ def proxy_request(path, query_string, headers_in, method, body):
         }
 
 
-def serve_static(path):
-    if path == '/' or path == '':
-        path = '/index.html'
-
-    file_path = os.path.normpath(os.path.join(PUBLIC_DIR, path.lstrip('/')))
-    if not file_path.startswith(PUBLIC_DIR):
-        return {
-            'status': 403,
-            'headers': {'content-type': 'text/plain'},
-            'body': b'Forbidden'
-        }
-
-    if not os.path.isfile(file_path):
-        return {
-            'status': 404,
-            'headers': {'content-type': 'text/plain'},
-            'body': b'Not Found'
-        }
-
-    ext = os.path.splitext(file_path)[1].lower()
-    content_type = MIME_TYPES.get(ext, 'application/octet-stream')
-
-    with open(file_path, 'rb') as f:
-        body_bytes = f.read()
-
-    return {
-        'status': 200,
-        'headers': {'content-type': content_type},
-        'body': body_bytes
-    }
-
-
 def _wsgi_headers(environ):
     headers = {}
     for key, value in environ.items():
         if key.startswith('HTTP_'):
             name = key[5:].replace('_', '-').title()
-            # title() lowercases everything after the first letter of each part, fix that
             parts = name.split('-')
             name = '-'.join(p[:1].upper() + p[1:] for p in parts)
             headers[name] = value
@@ -214,28 +158,6 @@ def _read_body(environ):
         return None
 
 
-def _dispatch(method, path, query_string, headers_in, body):
-    if method == 'OPTIONS':
-        return {
-            'status': 200,
-            'headers': {
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, PATCH',
-                'Access-Control-Allow-Headers': '*',
-            },
-            'body': b''
-        }
-
-    api_prefixes = ('/janitorai', '/sillytavern', '/health')
-    is_api = path in api_prefixes or path.startswith(tuple(p + '/' for p in api_prefixes))
-
-    if is_api:
-        body_str = body.decode('utf-8', errors='replace') if isinstance(body, (bytes, bytearray)) else body
-        return proxy_request(path, query_string, headers_in, method, body_str)
-
-    return serve_static(path)
-
-
 def app(environ, start_response):
     try:
         method = environ.get('REQUEST_METHOD', 'GET')
@@ -244,7 +166,19 @@ def app(environ, start_response):
         headers_in = _wsgi_headers(environ)
         body = _read_body(environ)
 
-        result = _dispatch(method, path, query_string, headers_in, body)
+        if method == 'OPTIONS':
+            result = {
+                'status': 200,
+                'headers': {
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, PATCH',
+                    'Access-Control-Allow-Headers': '*',
+                },
+                'body': b''
+            }
+        else:
+            body_str = body.decode('utf-8', errors='replace') if isinstance(body, (bytes, bytearray)) else body
+            result = proxy_request(path, query_string, headers_in, method, body_str)
 
         result_headers = dict(result.get('headers') or {})
         result_headers.setdefault('Access-Control-Allow-Origin', '*')
