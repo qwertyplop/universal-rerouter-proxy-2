@@ -1,11 +1,13 @@
-from flask import Flask, request, jsonify, Response, stream_with_context
+from flask import Flask, request, jsonify, Response, stream_with_context, send_from_directory
 from flask_cors import CORS
 import json
 import requests
 import base64
+import os
 from datetime import datetime
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder=None)
+PUBLIC_DIR = os.path.join(os.path.dirname(__file__), '..', 'public')
 CORS(app, origins="*", allow_headers="*", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"])
 
 # ============================================================================
@@ -155,3 +157,18 @@ def sillytavern_models_proxy():
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok", "platform": "vercel", "version": "2.0"}), 200
+
+
+@app.route("/", methods=["GET"])
+def index():
+    return send_from_directory(os.path.abspath(PUBLIC_DIR), "index.html")
+
+
+@app.route("/<path:filename>", methods=["GET"])
+def static_files(filename):
+    return send_from_directory(os.path.abspath(PUBLIC_DIR), filename)
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 3000))
+    app.run(host="0.0.0.0", port=port, debug=False)
