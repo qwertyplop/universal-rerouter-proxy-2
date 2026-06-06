@@ -6,7 +6,7 @@
     { "src": "public/**/*", "use": "@vercel/static" }
   ],
   "routes": [
-    { "src": "/(janitorai|sillytavern|health|api/proxy)(/.*)?", "dest": "api/proxy.py" },
+    { "src": "/(janitorai|sillytavern|health|api/proxy|api/logs)(/.*)?", "dest": "api/proxy.py" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
