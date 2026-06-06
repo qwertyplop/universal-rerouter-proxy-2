@@ -37,6 +37,28 @@ Everything in Base, plus a **no-code Prompt Manager**:
 - Each block has a role (`system`, `user`, `assistant`) and custom content
 - All config is encoded in the generated URL — no database needed
 
+## Config persistence (Export / Import)
+
+Settings are stored in your browser's `localStorage`. To back up or move your config to another browser/device:
+
+- Click **↓ Export** in the top-right — downloads `rerouter-config.json`
+- Click **↑ Import** on the other device — loads the JSON file and restores everything instantly
+
+The exported file looks like this:
+
+```json
+{
+  "version": 1,
+  "exported_at": "2024-01-01T00:00:00.000Z",
+  "upstream": "https://api.openai.com/v1/chat/completions",
+  "mode": "full",
+  "blocks": [
+    { "position": "prepend", "role": "system", "content": "You are..." },
+    { "position": "append",  "role": "assistant", "content": "Sure!" }
+  ]
+}
+```
+
 ## How the URL encoding works
 
 Settings are stored in your browser's localStorage and encoded into the proxy URL as base64 query parameters:

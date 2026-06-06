@@ -55,12 +55,25 @@
       </div>
     </div>
     <div class="flex items-center gap-2">
+      <button onclick="importConfig()" title="Import settings from JSON file"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-80"
+        style="background:#1a1b23; border:1px solid #2a2b38; color:#9ca3af;">
+        ↑ Import
+      </button>
+      <button onclick="exportConfig()" title="Export settings as JSON file"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-80"
+        style="background:#1a1b23; border:1px solid #2a2b38; color:#9ca3af;">
+        ↓ Export
+      </button>
       <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs" style="background:#14532d; color:#86efac;">
         <span class="w-1.5 h-1.5 rounded-full bg-green-400 inline-block"></span>
         Deployed
       </span>
     </div>
   </header>
+
+  <!-- Hidden file input for import -->
+  <input type="file" id="import-file-input" accept=".json,application/json" class="hidden" onchange="handleImportFile(this)" />
 
   <main class="max-w-2xl mx-auto px-4 py-8 space-y-6">
 
@@ -192,7 +205,7 @@
 
     <!-- Footer -->
     <footer class="text-center text-xs text-gray-600 pt-2 pb-6 space-y-1">
-      <p>Settings are stored locally in your browser.</p>
+      <p>Settings are stored locally in your browser. Use <strong class="text-gray-500">Export</strong> to back up and <strong class="text-gray-500">Import</strong> to restore on another device.</p>
       <p>The upstream URL is encoded in the generated link — no server-side config needed.</p>
     </footer>
 
@@ -406,6 +419,84 @@
       }
 
       refreshUrls();
+    }
+
+    // ============================================================
+    // Export / Import (Variant A)
+    // ============================================================
+    function exportConfig() {
+      const payload = {
+        version: 1,
+        exported_at: new Date().toISOString(),
+        upstream: state.upstream,
+        mode: state.mode,
+        blocks: state.blocks,
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = 'rerouter-config.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function importConfig() {
+      document.getElementById('import-file-input').value = '';
+      document.getElementById('import-file-input').click();
+    }
+
+    function handleImportFile(input) {
+      const file = input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (typeof data !== 'object' || data === null) throw new Error('Invalid format');
+
+          if (typeof data.upstream === 'string') {
+            state.upstream = data.upstream;
+            localStorage.setItem(LS_URL, state.upstream);
+          }
+          if (data.mode === 'base' || data.mode === 'full') {
+            state.mode = data.mode;
+            localStorage.setItem(LS_MODE, state.mode);
+          }
+          if (Array.isArray(data.blocks)) {
+            state.blocks = data.blocks.map(b => ({
+              id:       b.id       || Date.now() + Math.random(),
+              position: b.position === 'append' ? 'append' : 'prepend',
+              role:     ['system','user','assistant'].includes(b.role) ? b.role : 'system',
+              content:  typeof b.content === 'string' ? b.content : '',
+            }));
+            saveBlocks();
+          }
+
+          refresh();
+          showToast('✓ Config imported successfully');
+        } catch (err) {
+          showToast('✗ Invalid JSON file', true);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function showToast(msg, isError = false) {
+      const existing = document.getElementById('toast');
+      if (existing) existing.remove();
+      const el = document.createElement('div');
+      el.id = 'toast';
+      el.textContent = msg;
+      el.style.cssText = `
+        position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+        padding:10px 20px; border-radius:8px; font-size:13px; font-family:monospace;
+        color:#fff; z-index:9999; transition:opacity .3s;
+        background:${isError ? '#7f1d1d' : '#14532d'};
+        border:1px solid ${isError ? '#991b1b' : '#166534'};
+      `;
+      document.body.appendChild(el);
+      setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 2500);
     }
 
     // ============================================================
