@@ -34,6 +34,24 @@
     ::-webkit-scrollbar-thumb { background: #2a2b38; border-radius: 3px; }
     .fade-in { animation: fadeIn .2s ease; }
     @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+    /* Logs panel */
+    .logs-backdrop { opacity: 0; pointer-events: none; transition: opacity .2s; }
+    .logs-backdrop.open { opacity: 1; pointer-events: auto; }
+    .logs-panel { transform: translateX(100%); transition: transform .25s ease; }
+    .logs-panel.open { transform: translateX(0); }
+    .logs-row { border-bottom: 1px solid #2a2b38; }
+    .logs-row:hover { background: #1a1b23; }
+    .logs-row.expanded { background: #1a1b23; }
+    .logs-detail { background: #0d0e14; border-top: 1px solid #2a2b38; }
+    .logs-json { font-family: monospace; font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; color: #d1d5db; max-height: 320px; overflow: auto; padding: 10px; background: #0a0b10; border: 1px solid #2a2b38; border-radius: 6px; }
+    .logs-empty { color: #6b7280; font-size: 12px; text-align: center; padding: 40px 20px; line-height: 1.6; }
+    .logs-error-banner { background: #7f1d1d; border: 1px solid #991b1b; color: #fecaca; font-family: monospace; font-size: 11px; padding: 8px 10px; border-radius: 6px; margin-bottom: 8px; }
+    .toggle-switch { position: relative; display: inline-block; width: 36px; height: 20px; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; cursor: pointer; inset: 0; background-color: #2a2b38; border-radius: 20px; transition: .2s; }
+    .toggle-slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: #9ca3af; border-radius: 50%; transition: .2s; }
+    input:checked + .toggle-slider { background-color: #7c3aed; }
+    input:checked + .toggle-slider:before { transform: translateX(16px); background-color: #fff; }
   </style>
 </head>
 <body class="min-h-screen text-gray-100 font-mono">
@@ -65,6 +83,11 @@
       </button>
       <button onclick="exportConfig()" title="Export" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-80" style="background:#1a1b23; border:1px solid #2a2b38; color:#9ca3af;">
         <span data-i18n="export_btn"></span>
+      </button>
+      <button id="logs-btn" onclick="toggleLogsPanel()" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-80 flex items-center gap-1.5" style="background:#1a1b23; border:1px solid #2a2b38; color:#9ca3af;" data-i18n-title="logs_btn_title">
+        <span class="w-1.5 h-1.5 rounded-full inline-block" id="logs-btn-dot" style="background:#4b5563;"></span>
+        <span data-i18n="logs_btn"></span>
+        <span id="logs-btn-count" class="text-xs px-1.5 py-0.5 rounded" style="background:#2a2b38; color:#9ca3af; display:none;">0</span>
       </button>
       <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs" style="background:#14532d; color:#86efac;">
         <span class="w-1.5 h-1.5 rounded-full inline-block" style="background:#4ade80;"></span>
@@ -189,6 +212,45 @@
     </footer>
   </main>
 
+  <!-- Logs backdrop -->
+  <div id="logs-backdrop" class="logs-backdrop fixed inset-0 z-40" style="background:rgba(0,0,0,0.55);" onclick="toggleLogsPanel()"></div>
+
+  <!-- Logs side panel -->
+  <aside id="logs-panel" class="logs-panel fixed top-0 right-0 bottom-0 z-50 flex flex-col shadow-2xl" style="width:min(520px, 100vw); background:#111218; border-left:1px solid #2a2b38;">
+    <div class="flex items-center justify-between px-4 py-3 flex-none" style="border-bottom:1px solid #2a2b38;">
+      <div class="flex items-center gap-2">
+        <span class="text-sm font-bold text-white tracking-wide" data-i18n="logs_title"></span>
+        <span id="logs-count" class="text-xs px-2 py-0.5 rounded font-mono" style="background:#2a2b38; color:#9ca3af;">0</span>
+      </div>
+      <button onclick="toggleLogsPanel()" class="w-7 h-7 rounded flex items-center justify-center transition-all hover:opacity-80" style="background:#1a1b23; border:1px solid #2a2b38; color:#9ca3af;" data-i18n-title="logs_close">✕</button>
+    </div>
+
+    <div class="px-4 py-3 flex-none space-y-3" style="border-bottom:1px solid #2a2b38; background:#0d0e14;">
+      <label class="flex items-center justify-between gap-3 cursor-pointer">
+        <span class="flex items-center gap-2 text-xs" style="color:#9ca3af;">
+          <span class="w-1.5 h-1.5 rounded-full inline-block" id="logs-enable-dot" style="background:#4b5563;"></span>
+          <span data-i18n="logs_enable_hint"></span>
+        </span>
+        <span class="toggle-switch">
+          <input type="checkbox" id="logs-enabled-toggle" onchange="setLogsEnabled(this.checked)" />
+          <span class="toggle-slider"></span>
+        </span>
+      </label>
+      <div class="flex items-center gap-2 text-xs">
+        <button onclick="fetchLogs()" class="px-2.5 py-1 rounded font-semibold transition-all hover:opacity-80" style="background:#1a1b23; border:1px solid #2a2b38; color:#9ca3af;" data-i18n="logs_refresh"></button>
+        <button onclick="clearLogsServer()" class="px-2.5 py-1 rounded font-semibold transition-all hover:opacity-80" style="background:#1a1b23; border:1px solid #2a2b38; color:#9ca3af;" data-i18n="logs_clear"></button>
+        <label class="flex items-center gap-1.5 ml-auto cursor-pointer" style="color:#9ca3af;">
+          <input type="checkbox" id="logs-autorefresh" checked class="accent-purple-500" />
+          <span data-i18n="logs_auto"></span>
+        </label>
+      </div>
+    </div>
+
+    <div id="logs-list" class="flex-1 overflow-auto"></div>
+
+    <div class="flex-none px-4 py-2 text-xs" style="border-top:1px solid #2a2b38; color:#6b7280; background:#0d0e14;" data-i18n="logs_footer"></div>
+  </aside>
+
   <script>
   // ============================================================
   // Translations
@@ -238,6 +300,17 @@
       footer_line2:      "The upstream URL is encoded in the generated link — no server-side config needed.",
       toast_imported:    "✓ Config imported successfully",
       toast_error:       "✗ Invalid JSON file",
+      logs_btn:          "Logs",
+      logs_btn_title:    "View request logs",
+      logs_title:        "Request Logs",
+      logs_enable_hint:  "Add &log=1 to generated URLs",
+      logs_refresh:      "↻ Refresh",
+      logs_clear:        "Clear",
+      logs_auto:         "Auto",
+      logs_empty:        "No requests logged yet.\nEnable logging above and make a request through the proxy URL.",
+      logs_cleared:      "✓ Logs cleared",
+      logs_footer:       "Logs live in server memory (max 200). Lost on cold start.",
+      logs_close:        "Close logs panel",
     },
     ru: {
       subtitle:          "AI прокси для JanitorAI / SillyTavern",
@@ -283,6 +356,17 @@
       footer_line2:      "Upstream URL закодирован прямо в ссылке — серверное хранилище не нужно.",
       toast_imported:    "✓ Конфигурация импортирована",
       toast_error:       "✗ Некорректный JSON файл",
+      logs_btn:          "Логи",
+      logs_btn_title:    "Посмотреть логи запросов",
+      logs_title:        "Логи запросов",
+      logs_enable_hint:  "Добавлять &log=1 в генерируемые URL",
+      logs_refresh:      "↻ Обновить",
+      logs_clear:        "Очистить",
+      logs_auto:         "Авто",
+      logs_empty:        "Запросов пока нет.\nВключи логирование выше и сделай запрос через URL прокси.",
+      logs_cleared:      "✓ Логи очищены",
+      logs_footer:       "Логи хранятся в памяти сервера (макс. 200). Теряются при холодном старте.",
+      logs_close:        "Закрыть панель логов",
     }
   };
 
@@ -456,6 +540,194 @@
   // ============================================================
   // URL Generation
   // ============================================================
+  const LS_LOGS_ENABLED = 'rerouter_logs_enabled';
+  state.logsEnabled = localStorage.getItem(LS_LOGS_ENABLED) === '1';
+  state.logs = [];
+  state.logsPanelOpen = false;
+  let logsTimer = null;
+
+  function setLogsEnabled(on) {
+    state.logsEnabled = !!on;
+    localStorage.setItem(LS_LOGS_ENABLED, state.logsEnabled ? '1' : '0');
+    const btnDot = document.getElementById('logs-btn-dot');
+    const enDot  = document.getElementById('logs-enable-dot');
+    const color  = state.logsEnabled ? '#4ade80' : '#4b5563';
+    if (btnDot) btnDot.style.background = color;
+    if (enDot)  enDot.style.background  = color;
+    refreshUrls();
+  }
+
+  function toggleLogsPanel() {
+    const panel    = document.getElementById('logs-panel');
+    const backdrop = document.getElementById('logs-backdrop');
+    if (!panel) return;
+    const isOpen = panel.classList.contains('open');
+    if (isOpen) {
+      panel.classList.remove('open');
+      backdrop.classList.remove('open');
+      state.logsPanelOpen = false;
+      stopLogsAutoRefresh();
+    } else {
+      panel.classList.add('open');
+      backdrop.classList.add('open');
+      state.logsPanelOpen = true;
+      fetchLogs();
+      startLogsAutoRefresh();
+    }
+  }
+
+  function startLogsAutoRefresh() {
+    stopLogsAutoRefresh();
+    const cb = document.getElementById('logs-autorefresh');
+    if (cb && cb.checked) {
+      logsTimer = setInterval(() => { if (state.logsPanelOpen) fetchLogs(); }, 2000);
+    }
+  }
+  function stopLogsAutoRefresh() {
+    if (logsTimer) { clearInterval(logsTimer); logsTimer = null; }
+  }
+
+  async function fetchLogs() {
+    try {
+      const res  = await fetch('/api/logs', { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      state.logs = data.logs || [];
+      updateLogsCount();
+      renderLogs();
+    } catch (e) {
+      // silent
+    }
+  }
+
+  async function clearLogsServer() {
+    try {
+      const res = await fetch('/api/logs', { method: 'DELETE' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      state.logs = [];
+      updateLogsCount();
+      renderLogs();
+      showToast(t('logs_cleared'));
+    } catch (e) {
+      showToast(t('toast_error'), true);
+    }
+  }
+
+  function updateLogsCount() {
+    const n = state.logs.length;
+    const cnt = document.getElementById('logs-count');
+    const btnCnt = document.getElementById('logs-btn-count');
+    if (cnt) cnt.textContent = n;
+    if (btnCnt) {
+      if (n > 0) { btnCnt.textContent = n; btnCnt.style.display = ''; }
+      else       { btnCnt.style.display = 'none'; }
+    }
+  }
+
+  function methodColor(m) {
+    return ({
+      GET:    'background:#1e3a5f;color:#93c5fd;',
+      POST:   'background:#14532d;color:#86efac;',
+      PUT:    'background:#78350f;color:#fcd34d;',
+      DELETE: 'background:#7f1d1d;color:#fca5a5;',
+      PATCH:  'background:#3b1f5e;color:#c4b5fd;',
+      OPTIONS:'background:#374151;color:#9ca3af;',
+    })[m] || 'background:#374151;color:#9ca3af;';
+  }
+
+  function statusColor(s) {
+    if (s >= 200 && s < 300) return 'background:#14532d;color:#86efac;';
+    if (s >= 300 && s < 400) return 'background:#78350f;color:#fcd34d;';
+    if (s >= 400 && s < 500) return 'background:#7f1d1d;color:#fca5a5;';
+    if (s >= 500)            return 'background:#7f1d1d;color:#fecaca;';
+    return 'background:#374151;color:#9ca3af;';
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  }
+
+  function formatBody(parsed, raw) {
+    if (parsed !== null && parsed !== undefined) {
+      try { return JSON.stringify(parsed, null, 2); } catch (e) {}
+    }
+    if (raw) return raw;
+    return '(empty)';
+  }
+
+  function renderLogs() {
+    const list = document.getElementById('logs-list');
+    if (!list) return;
+    if (!state.logs || state.logs.length === 0) {
+      list.innerHTML = '<div class="logs-empty">' + escapeHtml(t('logs_empty')) + '</div>';
+      return;
+    }
+    const sorted = state.logs.map((e, idx) => ({ e, idx })).reverse();
+    list.innerHTML = sorted.map(({ e, idx }) => {
+      const m   = (e.method || 'GET').toUpperCase();
+      const s   = e.status;
+      const path = e.path || '/';
+      const dur = e.durationMs != null ? (e.durationMs + 'ms') : '...';
+      const time = (() => { try { return new Date(e.timestamp).toLocaleTimeString(); } catch (_) { return ''; } })();
+      const streamBadge = e.isStream
+        ? '<span style="background:#0e7490;color:#67e8f9;font-family:monospace;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;">STREAM</span>'
+        : '';
+      const errBadge = e.error
+        ? '<span style="background:#7f1d1d;color:#fecaca;font-family:monospace;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;">ERR</span>'
+        : '';
+      const bytes = e.bytesReceived != null ? (e.bytesReceived + 'B') : '';
+      const chunks = e.chunksCount > 0 ? (e.chunksCount + ' chunks') : '';
+      const idAttr = `log-${idx}`;
+      return `
+        <div class="logs-row" data-idx="${idx}">
+          <button class="w-full text-left p-3 flex flex-col gap-1.5" onclick="toggleLogDetail('${idAttr}')">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span style="${methodColor(m)}font-family:monospace;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;">${escapeHtml(m)}</span>
+              <span style="${statusColor(s)}font-family:monospace;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;">${s != null ? s : '...'}</span>
+              ${streamBadge}
+              ${errBadge}
+              <span class="font-mono text-xs truncate" style="color:#d1d5db;max-width:240px;">${escapeHtml(path)}</span>
+              <span class="ml-auto font-mono text-xs" style="color:#6b7280;">${escapeHtml(dur)}</span>
+            </div>
+            <div class="flex items-center gap-3 text-xs font-mono" style="color:#6b7280;">
+              <span>${escapeHtml(time)}</span>
+              ${bytes  ? `<span>${escapeHtml(bytes)}</span>` : ''}
+              ${chunks ? `<span>${escapeHtml(chunks)}</span>` : ''}
+            </div>
+          </button>
+          <div class="logs-detail hidden" id="log-detail-${idAttr}">
+            <div class="p-3 space-y-3">
+              ${e.error ? `<div class="logs-error-banner">${escapeHtml(e.error)}</div>` : ''}
+              <div>
+                <div class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#6b7280;">Request Headers</div>
+                <div class="logs-json">${escapeHtml(JSON.stringify(e.requestHeaders || {}, null, 2))}</div>
+              </div>
+              <div>
+                <div class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#6b7280;">Request Body${e.requestBodyTruncated ? ' (truncated)' : ''}</div>
+                <div class="logs-json">${escapeHtml(formatBody(e.requestBody, e.requestBodyRaw))}</div>
+              </div>
+              <div>
+                <div class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#6b7280;">Response Headers</div>
+                <div class="logs-json">${escapeHtml(JSON.stringify(e.responseHeaders || {}, null, 2))}</div>
+              </div>
+              <div>
+                <div class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#6b7280;">Response Body${e.responseBodyTruncated ? ' (truncated)' : ''}</div>
+                <div class="logs-json">${escapeHtml(formatBody(e.responseBody, e.responseBodyRaw))}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function toggleLogDetail(idAttr) {
+    const el = document.getElementById('log-detail-' + idAttr);
+    if (el) el.classList.toggle('hidden');
+  }
+
   function buildConfig() {
     if (state.mode === 'base') return { mode: 'base' };
     return {
@@ -478,8 +750,9 @@
     const base = window.location.origin;
     const t_   = b64encode(state.upstream);
     const c    = b64encode(JSON.stringify(buildConfig()));
-    document.getElementById('url-janitor').textContent = `${base}/janitorai?t=${t_}&c=${c}`;
-    document.getElementById('url-silly').textContent   = `${base}/sillytavern?t=${t_}&c=${c}`;
+    const log  = state.logsEnabled ? '&log=1' : '';
+    document.getElementById('url-janitor').textContent = `${base}/janitorai?t=${t_}&c=${c}${log}`;
+    document.getElementById('url-silly').textContent   = `${base}/sillytavern?t=${t_}&c=${c}${log}`;
   }
 
   // ============================================================
@@ -593,6 +866,10 @@
     document.getElementById('upstream-url').addEventListener('keydown', e => {
       if (e.key === 'Enter') saveAndRefresh();
     });
+    const tgl = document.getElementById('logs-enabled-toggle');
+    if (tgl) tgl.checked = state.logsEnabled;
+    setLogsEnabled(state.logsEnabled);
+    updateLogsCount();
   });
   </script>
 </body>
