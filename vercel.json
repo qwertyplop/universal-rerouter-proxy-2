@@ -1,9 +1,8 @@
 {
-  "version": 2,
-  "routes": [
-    { "src": "/janitorai(.*)", "dest": "/api/index.py" },
-    { "src": "/sillytavern(.*)", "dest": "/api/index.py" },
-    { "src": "/health", "dest": "/api/index.py" },
-    { "src": "/(.*)", "dest": "/api/index.py" }
-  ]
+  "version": 3,
+  "functions": {
+    "api/index.py": {
+      "runtime": "python3.12"
+    }
+  }
 }

@@ -1,18 +1,30 @@
-from flask import Flask, request, jsonify, Response, stream_with_context, send_from_directory
-from flask_cors import CORS
 import json
-import requests
-import base64
 import os
+import base64
+import urllib.request
+import urllib.error
+import urllib.parse
 from datetime import datetime
 
-app = Flask(__name__, static_folder=None)
-PUBLIC_DIR = os.path.join(os.path.dirname(__file__), '..', 'public')
-CORS(app, origins="*", allow_headers="*", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"])
 
-# ============================================================================
-# Helpers
-# ============================================================================
+PUBLIC_DIR = os.path.join(os.path.dirname(__file__), '..', 'public')
+
+MIME_TYPES = {
+    '.html': 'text/html',
+    '.css': 'text/css',
+    '.js': 'application/javascript',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.svg': 'image/svg+xml',
+    '.ico': 'image/x-icon',
+    '.woff2': 'font/woff2',
+    '.woff': 'font/woff',
+    '.ttf': 'font/ttf',
+}
+
 
 def decode_b64(s):
     if not s:
@@ -23,152 +35,178 @@ def decode_b64(s):
     except Exception:
         return None
 
-def get_target_url():
-    t = request.args.get('t')
-    if t:
-        decoded = decode_b64(t)
-        if decoded:
-            return decoded.strip()
+
+def get_target_url(query):
+    t = query.get('t', [''])[0]
+    if not t:
+        return None
+    decoded = decode_b64(t)
+    if decoded:
+        return decoded.strip()
     return None
 
-def get_config():
-    c = request.args.get('c')
-    if c:
-        decoded = decode_b64(c)
-        if decoded:
-            try:
-                return json.loads(decoded)
-            except Exception:
-                pass
+
+def get_config(query):
+    c = query.get('c', [''])[0]
+    if not c:
+        return {"mode": "base"}
+    decoded = decode_b64(c)
+    if decoded:
+        try:
+            return json.loads(decoded)
+        except Exception:
+            pass
     return {"mode": "base"}
 
-def proxy_request(source_label="proxy", models_mode=False):
-    target_url = get_target_url()
 
+def proxy_request(path, query_string, headers_in, method, body):
+    query = urllib.parse.parse_qs(query_string)
+
+    target_url = get_target_url(query)
     if not target_url:
-        return jsonify({
-            "error": "No target URL set.",
-            "hint": "Open the proxy UI, enter your upstream URL, and copy the generated endpoint."
-        }), 400
+        return {
+            'status': 400,
+            'headers': {'content-type': 'application/json'},
+            'body': json.dumps({
+                'error': 'No target URL set.',
+                'hint': 'Open the proxy UI, enter your upstream URL, and copy the generated endpoint.'
+            })
+        }
+
+    models_mode = path in ('/sillytavern/models',)
 
     if models_mode:
-        target_url = target_url.replace("/chat/completions", "/models")
+        target_url = target_url.replace('/chat/completions', '/models')
 
-    config = get_config()
-    mode = config.get("mode", "base")
+    config = get_config(query)
+    mode = config.get('mode', 'base')
 
-    # Strip identity/origin headers
     excluded = {
         'content-length', 'host', 'origin', 'referer', 'cookie',
         'user-agent', 'x-forwarded-for', 'x-forwarded-host', 'accept-encoding'
     }
-    clean_headers = {k: v for k, v in request.headers.items() if k.lower() not in excluded}
-    clean_headers["User-Agent"] = "Mozilla/5.0 (compatible; UniversalRerouter/2.0)"
+    clean_headers = {k: v for k, v in headers_in.items() if k.lower() not in excluded}
+    clean_headers['User-Agent'] = 'Mozilla/5.0 (compatible; UniversalRerouter/2.0)'
 
-    # Body
     json_body = None
     data_body = None
 
-    if request.is_json:
+    if body:
         try:
-            json_body = request.get_json(force=True)
+            json_body = json.loads(body)
+            if mode == 'full' and isinstance(json_body, dict) and 'messages' in json_body:
+                messages = list(json_body['messages'])
+                for block in reversed(config.get('prepend_blocks', [])):
+                    messages.insert(0, {'role': block['role'], 'content': block['content']})
+                for block in config.get('append_blocks', []):
+                    messages.append({'role': block['role'], 'content': block['content']})
+                json_body['messages'] = messages
+        except Exception:
+            data_body = body.encode('utf-8') if isinstance(body, str) else body
 
-            # Full mode: apply prompt blocks
-            if mode == "full" and isinstance(json_body, dict) and "messages" in json_body:
-                messages = list(json_body["messages"])
-
-                for block in reversed(config.get("prepend_blocks", [])):
-                    messages.insert(0, {"role": block["role"], "content": block["content"]})
-
-                for block in config.get("append_blocks", []):
-                    messages.append({"role": block["role"], "content": block["content"]})
-
-                json_body["messages"] = messages
-
-        except Exception as e:
-            print(f"[WARN] Body parse error: {e}")
-            json_body = None
-            data_body = request.get_data()
-    else:
-        data_body = request.get_data()
-
-    # Forward
     try:
         ts = datetime.now().isoformat()
-        print(f"[{ts}] {source_label} -> {target_url} mode={mode}")
+        print(f'[{ts}] proxy -> {target_url} mode={mode}', flush=True)
 
-        resp = requests.request(
-            method=request.method,
+        req = urllib.request.Request(
             url=target_url,
+            data=json.dumps(json_body).encode('utf-8') if json_body is not None else data_body,
             headers=clean_headers,
-            json=json_body,
-            data=data_body,
-            stream=True,
-            timeout=60,
+            method=method or 'GET'
         )
 
-        excluded_resp = {'content-encoding', 'content-length', 'transfer-encoding', 'connection'}
-        resp_headers = [(k, v) for k, v in resp.raw.headers.items() if k.lower() not in excluded_resp]
+        if json_body is not None:
+            req.add_header('Content-Type', 'application/json')
 
-        def generate():
-            for chunk in resp.iter_content(chunk_size=4096):
-                if chunk:
-                    yield chunk
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            resp_headers = {}
+            for k, v in resp.getheaders():
+                if k.lower() not in {'content-encoding', 'content-length', 'transfer-encoding', 'connection'}:
+                    resp_headers[k] = v
 
-        return Response(stream_with_context(generate()), resp.status_code, resp_headers)
+            return {
+                'status': resp.status,
+                'headers': resp_headers,
+                'body': resp.read().decode('utf-8', errors='replace')
+            }
 
+    except urllib.error.HTTPError as e:
+        return {
+            'status': e.code,
+            'headers': {'content-type': 'application/json'},
+            'body': json.dumps({'error': f'Proxy error: {str(e)}'})
+        }
     except Exception as e:
-        print(f"[ERROR] {e}")
-        return jsonify({"error": f"Proxy error: {str(e)}"}), 500
+        print(f'[ERROR] {e}', flush=True)
+        return {
+            'status': 500,
+            'headers': {'content-type': 'application/json'},
+            'body': json.dumps({'error': f'Proxy error: {str(e)}'})
+        }
 
 
-# ============================================================================
-# Routes
-# ============================================================================
+def serve_static(path):
+    if path == '/' or path == '':
+        path = '/index.html'
 
-@app.route("/janitorai", methods=["POST", "GET", "OPTIONS"])
-def janitor_proxy():
-    if request.method == "OPTIONS":
-        return "", 200
-    return proxy_request("janitorai")
+    file_path = os.path.normpath(os.path.join(PUBLIC_DIR, path.lstrip('/')))
+    if not file_path.startswith(os.path.normpath(PUBLIC_DIR)):
+        return {
+            'status': 403,
+            'headers': {'content-type': 'text/plain'},
+            'body': 'Forbidden'
+        }
 
+    if not os.path.isfile(file_path):
+        return {
+            'status': 404,
+            'headers': {'content-type': 'text/plain'},
+            'body': 'Not Found'
+        }
 
-@app.route("/sillytavern", methods=["POST", "GET", "OPTIONS"])
-def sillytavern_proxy():
-    if request.method == "OPTIONS":
-        return "", 200
-    return proxy_request("sillytavern")
+    ext = os.path.splitext(file_path)[1].lower()
+    content_type = MIME_TYPES.get(ext, 'application/octet-stream')
 
+    with open(file_path, 'rb') as f:
+        body_bytes = f.read()
 
-@app.route("/sillytavern/chat/completions", methods=["POST", "GET", "OPTIONS"])
-def sillytavern_chat_proxy():
-    if request.method == "OPTIONS":
-        return "", 200
-    return proxy_request("sillytavern")
-
-
-@app.route("/sillytavern/models", methods=["GET", "OPTIONS"])
-def sillytavern_models_proxy():
-    if request.method == "OPTIONS":
-        return "", 200
-    return proxy_request("sillytavern_models", models_mode=True)
-
-
-@app.route("/health", methods=["GET"])
-def health():
-    return jsonify({"status": "ok", "platform": "vercel", "version": "2.0"}), 200
+    return {
+        'status': 200,
+        'headers': {'content-type': content_type},
+        'body': body_bytes
+    }
 
 
-@app.route("/", methods=["GET"])
-def index():
-    return send_from_directory(os.path.abspath(PUBLIC_DIR), "index.html")
+def handler(request):
+    url = request.get('url', '/')
+    parsed = urllib.parse.urlparse(url)
+    path = parsed.path
+    query_string = parsed.query
+    method = request.get('method', 'GET')
+    headers = request.get('headers', {})
+    body = request.get('body')
 
+    if method == 'OPTIONS':
+        return {
+            'status': 200,
+            'headers': {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, PATCH',
+                'Access-Control-Allow-Headers': '*'
+            },
+            'body': ''
+        }
 
-@app.route("/<path:filename>", methods=["GET"])
-def static_files(filename):
-    return send_from_directory(os.path.abspath(PUBLIC_DIR), filename)
+    api_prefixes = ('/janitorai', '/sillytavern', '/health')
+    is_api = path in api_prefixes or path.startswith(tuple(p + '/' for p in api_prefixes))
 
+    if is_api:
+        result = proxy_request(path, query_string, headers, method, body)
+    else:
+        result = serve_static(path)
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 3000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+    result['headers'].setdefault('Access-Control-Allow-Origin', '*')
+    result['headers'].setdefault('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH')
+    result['headers'].setdefault('Access-Control-Allow-Headers', '*')
+
+    return result
