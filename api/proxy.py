@@ -50,8 +50,14 @@ def clear_logs():
         LOG_BUFFER.clear()
 
 
-def _should_log(query):
-    return query.get('log', [''])[0].lower() in ('1', 'true', 'yes', 'on')
+def _should_log(query, config=None):
+    # 1. URL param must explicitly request logging
+    if query.get('log', [''])[0].lower() not in ('1', 'true', 'yes', 'on'):
+        return False
+    # 2. Config can disable logging even if &log=1 is present in URL
+    if config is not None and config.get('logsEnabled') is False:
+        return False
+    return True
 
 
 def _truncate_for_log(s, cap=LOG_BODY_MAX):
@@ -279,7 +285,11 @@ def get_config(query):
     decoded = decode_b64(c)
     if decoded:
         try:
-            return json.loads(decoded)
+            cfg = json.loads(decoded)
+            if isinstance(cfg, dict):
+                cfg.setdefault('mode', 'base')
+                cfg.setdefault('logsEnabled', True)
+                return cfg
         except Exception:
             pass
     return {"mode": "base"}
@@ -354,7 +364,7 @@ def proxy_request(path, query_string, headers_in, method, body):
     if query.get('stream', [''])[0].lower() in ('1', 'true', 'yes', 'on'):
         is_stream = True
 
-    log_requested = _should_log(query)
+    log_requested = _should_log(query, config)
     log_state = _new_log_state(method, path, query_string, is_stream, clean_headers, body_bytes, json_body) if log_requested else None
     if log_state is not None:
         if json_body is not None:

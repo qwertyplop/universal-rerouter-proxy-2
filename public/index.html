@@ -576,7 +576,6 @@
     else                        state.appendBlocks.push(block);
     saveBlocks();
     renderBlocks();
-    refreshUrls();
   }
 
   function removeBlock(group, id) {
@@ -586,7 +585,6 @@
     arr.splice(idx, 1);
     saveBlocks();
     renderBlocks();
-    refreshUrls();
   }
 
   function moveBlock(group, id, dir) {
@@ -598,7 +596,6 @@
     [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
     saveBlocks();
     renderBlocks();
-    refreshUrls();
   }
 
   function updateBlock(group, id, field, value) {
@@ -607,7 +604,6 @@
     if (!b) return;
     b[field] = value;
     saveBlocks();
-    refreshUrls();
     if (field === 'role') renderBlocks();  // role changes the border colour, re-render
   }
 
@@ -682,14 +678,13 @@
 
   function setLogsEnabled(on) {
     state.logsEnabled = !!on;
-    localStorage.setItem(LS_LOGS_ENABLED, state.logsEnabled ? '1' : '0');
-    const btnDot = document.getElementById('logs-btn-dot');
-    const enDot  = document.getElementById('logs-enable-dot');
-    const color  = state.logsEnabled ? '#4ade80' : '#4b5563';
-    if (btnDot) btnDot.style.background = color;
-    if (enDot)  enDot.style.background  = color;
-    refreshUrls();
-  }
+       localStorage.setItem(LS_LOGS_ENABLED, state.logsEnabled ? '1' : '0');
+       const btnDot = document.getElementById('logs-btn-dot');
+       const enDot = document.getElementById('logs-enable-dot');
+       const color = state.logsEnabled ? '#4ade80' : '#4b5563';
+       if (btnDot) btnDot.style.background = color;
+       if (enDot) enDot.style.background = color;
+     }
 
   function toggleLogsPanel() {
     const panel    = document.getElementById('logs-panel');
@@ -900,7 +895,7 @@
   }
 
   function buildConfig() {
-    if (state.mode === 'base') return { mode: 'base' };
+    if (state.mode === 'base') return { mode: 'base', logsEnabled: !!state.logsEnabled };
     const mapBlock = b => {
       const out = { role: b.role, content: b.content };
       if (b.name && b.name.trim()) out.name = b.name.trim();
@@ -910,6 +905,7 @@
       mode: 'full',
       prepend_blocks: state.prependBlocks.map(mapBlock),
       append_blocks:  state.appendBlocks.map(mapBlock),
+      logsEnabled:    !!state.logsEnabled,
     };
   }
 
@@ -948,14 +944,15 @@
   // Export / Import
   // ============================================================
   function exportConfig() {
-    const payload = {
-      version: 2,
-      exported_at: new Date().toISOString(),
-      upstream: state.upstream,
-      mode: state.mode,
-      prependBlocks: state.prependBlocks,
-      appendBlocks:  state.appendBlocks,
-    };
+   const payload = {
+     version: 2,
+     exported_at: new Date().toISOString(),
+     upstream: state.upstream,
+     mode: state.mode,
+     prependBlocks: state.prependBlocks,
+     appendBlocks: state.appendBlocks,
+     logsEnabled: !!state.logsEnabled,
+   };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
@@ -978,6 +975,10 @@
         if (typeof data !== 'object' || data === null) throw new Error();
         if (typeof data.upstream === 'string') { state.upstream = data.upstream; localStorage.setItem(LS_URL, state.upstream); }
         if (data.mode === 'base' || data.mode === 'full') { state.mode = data.mode; localStorage.setItem(LS_MODE, state.mode); }
+        if (typeof data.logsEnabled === 'boolean') {
+          state.logsEnabled = data.logsEnabled;
+          localStorage.setItem(LS_LOGS_ENABLED, state.logsEnabled ? '1' : '0');
+        }
 
         // v2 format: separate prependBlocks/appendBlocks
         if (Array.isArray(data.prependBlocks) || Array.isArray(data.appendBlocks)) {
