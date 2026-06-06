@@ -10,7 +10,7 @@ A zero-config AI proxy for JanitorAI and SillyTavern. Deploy to Vercel in one cl
 
 ## Deploy
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/YOUR_USERNAME/universal-rerouter)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/qwertyplo/universal-rerouter-proxy-2)
 
 Or manually:
 
