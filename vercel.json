@@ -1,11 +1,9 @@
 {
   "version": 2,
-  "rewrites": [
-    { "source": "/janitorai/:path*", "destination": "/api/index" },
-    { "source": "/sillytavern/:path*", "destination": "/api/index" },
-    { "source": "/health/:path*", "destination": "/api/index" },
-    { "source": "/api/:path*", "destination": "/api/index" },
-    { "source": "/", "destination": "/index.html" },
-    { "source": "/:path*", "destination": "/index.html" }
+  "routes": [
+    { "src": "^/janitorai(/.*)?$", "dest": "/api/index" },
+    { "src": "^/sillytavern(/.*)?$", "dest": "/api/index" },
+    { "src": "^/health(/.*)?$", "dest": "/api/index" },
+    { "src": "^/api(/.*)?$", "dest": "/api/index" }
   ]
 }
