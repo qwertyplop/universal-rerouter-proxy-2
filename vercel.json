@@ -1,5 +1,8 @@
 {
   "version": 2,
+  "functions": {
+    "api/proxy.py": { "entrypoint": "app" }
+  },
   "rewrites": [
     { "source": "/janitorai/:path*", "destination": "/api/proxy" },
     { "source": "/sillytavern/:path*", "destination": "/api/proxy" },
