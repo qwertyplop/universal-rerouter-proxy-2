@@ -280,9 +280,9 @@
           </div>
         </div>
       </details>
-      <div class="mt-4">
-        <button onclick="saveAll()" class="w-full px-4 py-2.5 rounded-lg text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-95" style="background:#7c3aed;" data-i18n="save_btn">
-          Сохранить
+      <div class="mt-6">
+        <button onclick="saveAll()" class="w-full px-6 py-3 text-lg font-bold text-white transition-all hover:opacity-90 active:scale-95" style="background:#7c3aed;" data-i18n="save_btn">
+          Сохранить всё
         </button>
       </div>
     </section>
@@ -924,6 +924,7 @@
   }
 
   function refreshUrls() {
+    console.log('refreshUrls called, upstream:', state.upstream);
     const section = document.getElementById('urls-section');
     const notice  = document.getElementById('no-url-notice');
     if (!state.upstream) {
