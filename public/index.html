@@ -147,18 +147,41 @@
     <section id="prompt-manager" class="hidden rounded-xl p-5 space-y-4 fade-in" style="background:#1a1b23; border:1px solid #2a2b38;">
       <div class="flex items-center justify-between">
         <label class="text-xs text-gray-400 uppercase tracking-widest" data-i18n="pm_label"></label>
-        <div class="flex gap-2">
-          <button onclick="addBlock('prepend')" class="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all hover:opacity-90" style="background:#1e3a5f; color:#93c5fd;" data-i18n="pm_add_prepend"></button>
-          <button onclick="addBlock('append')"  class="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all hover:opacity-90" style="background:#3b1f5e; color:#c4b5fd;" data-i18n="pm_add_append"></button>
+      </div>
+
+      <!-- Prepend group -->
+      <div class="space-y-2">
+        <div class="flex items-center justify-between">
+          <p class="text-xs flex items-center gap-1.5" style="color:#93c5fd;">
+            <span class="inline-block w-2 h-2 rounded-sm" style="background:#1e3a5f;"></span>
+            <strong data-i18n="pm_prepend_word"></strong>
+            <span class="text-gray-500" data-i18n="pm_prepend_desc_short"></span>
+          </p>
+          <button onclick="addBlock('prepend')" class="text-xs px-2.5 py-1 rounded-lg font-semibold transition-all hover:opacity-90" style="background:#1e3a5f; color:#93c5fd;" data-i18n="pm_add_prepend"></button>
         </div>
+        <div id="blocks-prepend" class="space-y-2"></div>
       </div>
 
-      <div class="text-xs text-gray-500 space-y-0.5">
-        <p><span class="inline-block w-2 h-2 rounded-sm mr-1" style="background:#1e3a5f;"></span><strong class="text-blue-300" data-i18n="pm_prepend_word"></strong> — <span data-i18n="pm_prepend_desc"></span></p>
-        <p><span class="inline-block w-2 h-2 rounded-sm mr-1" style="background:#3b1f5e;"></span><strong class="text-purple-300" data-i18n="pm_append_word"></strong> — <span data-i18n="pm_append_desc"></span></p>
+      <!-- Divider -->
+      <div class="flex items-center gap-3" style="color:#2a2b38;">
+        <div class="flex-1 h-px" style="background:#2a2b38;"></div>
+        <span class="text-[10px] uppercase tracking-widest" style="color:#4b5563;" data-i18n="pm_divider"></span>
+        <div class="flex-1 h-px" style="background:#2a2b38;"></div>
       </div>
 
-      <div id="blocks-list" class="space-y-3"></div>
+      <!-- Append group -->
+      <div class="space-y-2">
+        <div class="flex items-center justify-between">
+          <p class="text-xs flex items-center gap-1.5" style="color:#c4b5fd;">
+            <span class="inline-block w-2 h-2 rounded-sm" style="background:#3b1f5e;"></span>
+            <strong data-i18n="pm_append_word"></strong>
+            <span class="text-gray-500" data-i18n="pm_append_desc_short"></span>
+          </p>
+          <button onclick="addBlock('append')" class="text-xs px-2.5 py-1 rounded-lg font-semibold transition-all hover:opacity-90" style="background:#3b1f5e; color:#c4b5fd;" data-i18n="pm_add_append"></button>
+        </div>
+        <div id="blocks-append" class="space-y-2"></div>
+      </div>
+
       <div id="blocks-empty" class="text-center py-8 text-gray-600 text-sm">
         <span data-i18n="pm_empty"></span>
       </div>
@@ -284,6 +307,10 @@
       pm_prepend_desc:   "injected at the start of the messages array",
       pm_append_word:    "Append",
       pm_append_desc:    "injected at the end (after the user's last message)",
+      pm_prepend_desc_short: "— before the conversation",
+      pm_append_desc_short:  "— after the conversation",
+      pm_divider:         "prepend · append",
+      pm_label_placeholder: "Label (for your reference only)",
       pm_empty:          'No blocks yet. Add a <strong>Prepend</strong> or <strong>Append</strong> block above.',
       pm_block_placeholder: "Enter the message content for this block...",
       urls_label:        "Generated Proxy URLs",
@@ -340,6 +367,10 @@
       pm_prepend_desc:   "вставляется в начало массива messages",
       pm_append_word:    "Append",
       pm_append_desc:    "вставляется в конец (после последнего сообщения пользователя)",
+      pm_prepend_desc_short: "— перед диалогом",
+      pm_append_desc_short:  "— после диалога",
+      pm_divider:         "prepend · append",
+      pm_label_placeholder: "Лейбл (только для удобства)",
       pm_empty:          'Блоков нет. Добавьте блок <strong>В начало</strong> или <strong>В конец</strong>.',
       pm_block_placeholder: "Введите содержимое сообщения...",
       urls_label:        "Сгенерированные URL прокси",
@@ -383,7 +414,8 @@
   let state = {
     upstream: localStorage.getItem(LS_URL)    || '',
     mode:     localStorage.getItem(LS_MODE)   || 'base',
-    blocks:   JSON.parse(localStorage.getItem(LS_BLOCKS) || '[]'),
+    prependBlocks: [],
+    appendBlocks:  [],
   };
 
   // ============================================================
@@ -449,92 +481,128 @@
   // ============================================================
   // Blocks
   // ============================================================
+  // Migration: older versions stored a flat array; new structure keeps
+  // prepend and append in separate arrays so each Add lands at the
+  // bottom of its own group.
+  (function migrateBlocks() {
+    const raw = JSON.parse(localStorage.getItem(LS_BLOCKS) || '[]');
+    const flat = Array.isArray(raw) ? raw : [];
+    if (flat.length > 0 && (flat[0].position === undefined || flat.some(b => typeof b !== 'object' || !b.position))) {
+      state.prependBlocks = [];
+      state.appendBlocks  = [];
+    } else if (flat.length > 0 && Array.isArray(flat[0]?.prependBlocks)) {
+      state.prependBlocks = flat[0].prependBlocks || [];
+      state.appendBlocks  = flat[0].appendBlocks  || [];
+    } else {
+      state.prependBlocks = flat.filter(b => b.position === 'prepend');
+      state.appendBlocks  = flat.filter(b => b.position === 'append');
+    }
+    for (const arr of [state.prependBlocks, state.appendBlocks]) {
+      for (const b of arr) {
+        if (typeof b.name !== 'string') b.name = '';
+        if (!b.id) b.id = Date.now() + Math.random();
+        delete b.position;  // legacy v1 field, redundant after split
+      }
+    }
+  })();
+
   function saveBlocks() {
-    localStorage.setItem(LS_BLOCKS, JSON.stringify(state.blocks));
+    localStorage.setItem(LS_BLOCKS, JSON.stringify([
+      { prependBlocks: state.prependBlocks, appendBlocks: state.appendBlocks }
+    ]));
   }
 
   function addBlock(position) {
-    state.blocks.push({ id: Date.now(), position, role: 'system', content: '' });
+    const block = { id: Date.now() + Math.random(), role: 'system', name: '', content: '' };
+    if (position === 'prepend') state.prependBlocks.push(block);
+    else                        state.appendBlocks.push(block);
     saveBlocks();
     renderBlocks();
     refreshUrls();
   }
 
-  function removeBlock(id) {
-    state.blocks = state.blocks.filter(b => b.id !== id);
+  function removeBlock(group, id) {
+    const arr = group === 'prepend' ? state.prependBlocks : state.appendBlocks;
+    const idx = arr.findIndex(b => b.id === id);
+    if (idx < 0) return;
+    arr.splice(idx, 1);
     saveBlocks();
     renderBlocks();
     refreshUrls();
   }
 
-  function moveBlock(id, dir) {
-    const idx = state.blocks.findIndex(b => b.id === id);
+  function moveBlock(group, id, dir) {
+    const arr = group === 'prepend' ? state.prependBlocks : state.appendBlocks;
+    const idx = arr.findIndex(b => b.id === id);
     if (idx < 0) return;
     const newIdx = idx + dir;
-    if (newIdx < 0 || newIdx >= state.blocks.length) return;
-    [state.blocks[idx], state.blocks[newIdx]] = [state.blocks[newIdx], state.blocks[idx]];
+    if (newIdx < 0 || newIdx >= arr.length) return;
+    [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
     saveBlocks();
     renderBlocks();
     refreshUrls();
   }
 
-  function updateBlock(id, field, value) {
-    const b = state.blocks.find(b => b.id === id);
+  function updateBlock(group, id, field, value) {
+    const arr = group === 'prepend' ? state.prependBlocks : state.appendBlocks;
+    const b = arr.find(b => b.id === id);
     if (b) { b[field] = value; saveBlocks(); refreshUrls(); }
   }
 
-  function renderBlocks() {
-    const list  = document.getElementById('blocks-list');
-    const empty = document.getElementById('blocks-empty');
-    if (!list) return;
-
-    if (state.blocks.length === 0) {
-      list.innerHTML = '';
-      empty.classList.remove('hidden');
-      return;
-    }
-    empty.classList.add('hidden');
-
-    list.innerHTML = state.blocks.map((b, i) => {
-      const isFirst = i === 0;
-      const isLast  = i === state.blocks.length - 1;
-      const isPre   = b.position === 'prepend';
-      const bgColor = isPre ? '#0d1a2e' : '#1a0d2e';
-      const badge   = isPre
-        ? `<span class="text-xs px-2 py-0.5 rounded font-semibold" style="background:#1e3a5f;color:#93c5fd;">↑ ${t('pm_prepend_word').toLowerCase()}</span>`
-        : `<span class="text-xs px-2 py-0.5 rounded font-semibold" style="background:#3b1f5e;color:#c4b5fd;">↓ ${t('pm_append_word').toLowerCase()}</span>`;
-
-      const roleOpts = ['system','user','assistant'].map(r =>
-        `<option value="${r}" ${b.role === r ? 'selected' : ''}>${r}</option>`
-      ).join('');
-
-      return `
-        <div class="block-card rounded-xl p-4 space-y-3" style="background:${bgColor};">
-          <div class="flex items-center justify-between gap-2">
-            <div class="flex items-center gap-2 flex-wrap">
-              ${badge}
-              <select
-                class="text-xs px-2 py-1 rounded-lg text-white outline-none focus:ring-1"
-                style="background:#111218; border:1px solid #2a2b38;"
-                onchange="updateBlock(${b.id}, 'role', this.value)"
-              >${roleOpts}</select>
-            </div>
-            <div class="flex items-center gap-1">
-              <button onclick="moveBlock(${b.id}, -1)" ${isFirst ? 'disabled' : ''} class="w-7 h-7 rounded flex items-center justify-center disabled:opacity-20 transition-colors hover:text-white" style="background:#111218; color:#6b7280;">▲</button>
-              <button onclick="moveBlock(${b.id},  1)" ${isLast  ? 'disabled' : ''} class="w-7 h-7 rounded flex items-center justify-center disabled:opacity-20 transition-colors hover:text-white" style="background:#111218; color:#6b7280;">▼</button>
-              <button onclick="removeBlock(${b.id})" class="w-7 h-7 rounded flex items-center justify-center transition-colors" style="background:#111218; color:#ef4444;">✕</button>
-            </div>
-          </div>
-          <textarea
-            rows="4"
-            placeholder="${t('pm_block_placeholder')}"
-            class="w-full rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 outline-none focus:ring-2"
+  function renderBlockCard(b, group, i, total) {
+    const isPre  = group === 'prepend';
+    const bg     = isPre ? '#0d1a2e' : '#1a0d2e';
+    const border = isPre ? '#1e3a5f' : '#3b1f5e';
+    const roleOpts = ['system','user','assistant'].map(r =>
+      `<option value="${r}" ${b.role === r ? 'selected' : ''}>${r}</option>`
+    ).join('');
+    const nameEsc = (b.name || '').replace(/"/g, '&quot;');
+    return `
+      <div class="block-card rounded-xl p-3.5 space-y-2" style="background:${bg}; border:1px solid ${border}30;">
+        <div class="flex items-center gap-2">
+          <input
+            type="text"
+            placeholder="${t('pm_label_placeholder')}"
+            value="${nameEsc}"
+            oninput="updateBlock('${group}', ${b.id}, 'name', this.value)"
+            class="flex-1 text-xs px-2 py-1 rounded text-gray-200 placeholder-gray-600 outline-none focus:ring-1"
             style="background:#111218; border:1px solid #2a2b38;"
-            oninput="updateBlock(${b.id}, 'content', this.value)"
-          >${b.content}</textarea>
+          />
+          <select
+            class="text-xs px-2 py-1 rounded-lg text-white outline-none focus:ring-1"
+            style="background:#111218; border:1px solid #2a2b38;"
+            onchange="updateBlock('${group}', ${b.id}, 'role', this.value)"
+          >${roleOpts}</select>
+          <button onclick="moveBlock('${group}', ${b.id}, -1)" ${i === 0 ? 'disabled' : ''} class="w-7 h-7 rounded flex items-center justify-center disabled:opacity-20 transition-colors hover:text-white" style="background:#111218; color:#6b7280;">▲</button>
+          <button onclick="moveBlock('${group}', ${b.id},  1)" ${i === total - 1 ? 'disabled' : ''} class="w-7 h-7 rounded flex items-center justify-center disabled:opacity-20 transition-colors hover:text-white" style="background:#111218; color:#6b7280;">▼</button>
+          <button onclick="removeBlock('${group}', ${b.id})" class="w-7 h-7 rounded flex items-center justify-center transition-colors" style="background:#111218; color:#ef4444;">✕</button>
         </div>
-      `;
-    }).join('');
+        <textarea
+          rows="4"
+          placeholder="${t('pm_block_placeholder')}"
+          class="w-full rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 outline-none focus:ring-2"
+          style="background:#111218; border:1px solid #2a2b38;"
+          oninput="updateBlock('${group}', ${b.id}, 'content', this.value)"
+        >${(b.content || '').replace(/</g, '&lt;')}</textarea>
+      </div>
+    `;
+  }
+
+  function renderBlocks() {
+    const preEl  = document.getElementById('blocks-prepend');
+    const appEl  = document.getElementById('blocks-append');
+    const empty  = document.getElementById('blocks-empty');
+    if (!preEl || !appEl) return;
+
+    const total = state.prependBlocks.length + state.appendBlocks.length;
+    empty.classList.toggle('hidden', total > 0);
+
+    preEl.innerHTML = state.prependBlocks
+      .map((b, i) => renderBlockCard(b, 'prepend', i, state.prependBlocks.length))
+      .join('');
+    appEl.innerHTML = state.appendBlocks
+      .map((b, i) => renderBlockCard(b, 'append', i, state.appendBlocks.length))
+      .join('');
   }
 
   // ============================================================
@@ -741,10 +809,15 @@
 
   function buildConfig() {
     if (state.mode === 'base') return { mode: 'base' };
+    const mapBlock = b => {
+      const out = { role: b.role, content: b.content };
+      if (b.name && b.name.trim()) out.name = b.name.trim();
+      return out;
+    };
     return {
       mode: 'full',
-      prepend_blocks: state.blocks.filter(b => b.position === 'prepend').map(b => ({ role: b.role, content: b.content })),
-      append_blocks:  state.blocks.filter(b => b.position === 'append').map(b => ({ role: b.role, content: b.content })),
+      prepend_blocks: state.prependBlocks.map(mapBlock),
+      append_blocks:  state.appendBlocks.map(mapBlock),
     };
   }
 
@@ -784,11 +857,12 @@
   // ============================================================
   function exportConfig() {
     const payload = {
-      version: 1,
+      version: 2,
       exported_at: new Date().toISOString(),
       upstream: state.upstream,
       mode: state.mode,
-      blocks: state.blocks,
+      prependBlocks: state.prependBlocks,
+      appendBlocks:  state.appendBlocks,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url  = URL.createObjectURL(blob);
@@ -812,20 +886,32 @@
         if (typeof data !== 'object' || data === null) throw new Error();
         if (typeof data.upstream === 'string') { state.upstream = data.upstream; localStorage.setItem(LS_URL, state.upstream); }
         if (data.mode === 'base' || data.mode === 'full') { state.mode = data.mode; localStorage.setItem(LS_MODE, state.mode); }
-        if (Array.isArray(data.blocks)) {
-          state.blocks = data.blocks.map(b => ({
-            id:       b.id || Date.now() + Math.random(),
-            position: b.position === 'append' ? 'append' : 'prepend',
-            role:     ['system','user','assistant'].includes(b.role) ? b.role : 'system',
-            content:  typeof b.content === 'string' ? b.content : '',
-          }));
-          saveBlocks();
+
+        // v2 format: separate prependBlocks/appendBlocks
+        if (Array.isArray(data.prependBlocks) || Array.isArray(data.appendBlocks)) {
+          state.prependBlocks = (data.prependBlocks || []).map(normalizeBlock);
+          state.appendBlocks  = (data.appendBlocks  || []).map(normalizeBlock);
         }
+        // v1 format: flat blocks array with position
+        else if (Array.isArray(data.blocks)) {
+          state.prependBlocks = data.blocks.filter(b => b.position === 'prepend').map(normalizeBlock);
+          state.appendBlocks  = data.blocks.filter(b => b.position === 'append').map(normalizeBlock);
+        }
+        saveBlocks();
         refresh();
         showToast(t('toast_imported'));
       } catch { showToast(t('toast_error'), true); }
     };
     reader.readAsText(file);
+  }
+
+  function normalizeBlock(b) {
+    return {
+      id:      b.id || Date.now() + Math.random(),
+      role:    ['system','user','assistant'].includes(b.role) ? b.role : 'system',
+      name:    typeof b.name === 'string' ? b.name : '',
+      content: typeof b.content === 'string' ? b.content : '',
+    };
   }
 
   function showToast(msg, isError = false) {
