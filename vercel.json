@@ -8,6 +8,6 @@
     { "source": "/janitorai/:path*", "destination": "/api/index" },
     { "source": "/sillytavern/:path*", "destination": "/api/index" },
     { "source": "/health/:path*", "destination": "/api/index" },
-    { "source": "/((?!api/).*)", "destination": "/public/index.html" }
+    { "source": "/:path*", "destination": "/index.html" }
   ]
 }
