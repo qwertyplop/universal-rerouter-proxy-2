@@ -61,6 +61,55 @@
     .toggle-slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: #9ca3af; border-radius: 50%; transition: .2s; }
     input:checked + .toggle-slider { background-color: #7c3aed; }
     input:checked + .toggle-slider:before { transform: translateX(16px); background-color: #fff; }
+
+    /* ============================================================
+       Responsive — phone (≤640px)
+       ============================================================ */
+    @media (max-width: 640px) {
+      /* Header — compact */
+      header.px-6 { padding-left: 12px; padding-right: 12px; }
+      header .text-sm { font-size: 12px; }
+      header .text-xs { font-size: 11px; }
+      header .gap-3 { gap: 8px; }
+      header .gap-2 { gap: 6px; }
+      header .px-3 { padding-left: 8px; padding-right: 8px; }
+      header .px-2\.5 { padding-left: 6px; padding-right: 6px; }
+      .header-deployed-text { display: none; }
+      .header-subtitle { display: none; }
+
+      /* Main — less vertical breathing room */
+      main { padding: 16px 12px !important; }
+      main .space-y-6 > * + * { margin-top: 16px !important; }
+
+      /* Section cards — less padding */
+      section.p-5 { padding: 14px !important; }
+      section .space-y-4 { row-gap: 12px; }
+      section .space-y-3 { row-gap: 8px; }
+
+      /* Block card — 2 rows on phones (label full-width, controls wrapped) */
+      .block-card { padding: 12px !important; }
+      .block-card > div:first-child { flex-wrap: wrap; row-gap: 8px; }
+      .block-label { flex: 1 1 100% !important; min-width: 0; }
+      .block-controls { width: 100%; justify-content: flex-end; }
+      .block-controls button { width: 32px; height: 32px; }
+      .block-controls select { font-size: 11px; }
+
+      /* URL display row — make Copy slightly smaller */
+      .copy-btn { padding: 8px 10px !important; min-width: 56px !important; font-size: 11px !important; }
+
+      /* Mode selector buttons */
+      .grid-cols-2 button { padding-top: 10px; padding-bottom: 10px; }
+
+      /* Logs panel takes full width on phones */
+      aside.logs-panel { width: 100vw !important; }
+    }
+
+    /* Very small phones (≤360px) — extra-tight */
+    @media (max-width: 360px) {
+      header .header-btn-text { display: none; }  /* fall back to title attr only */
+      .block-card { padding: 10px !important; }
+      .block-controls button { width: 28px; height: 28px; }
+    }
   </style>
 </head>
 <body class="min-h-screen text-gray-100 font-mono">
@@ -78,7 +127,7 @@
       </div>
       <div>
         <h1 class="text-sm font-bold text-white tracking-wide">Universal Rerouter</h1>
-        <p class="text-xs text-gray-500" data-i18n="subtitle"></p>
+        <p class="header-subtitle text-xs text-gray-500" data-i18n="subtitle"></p>
       </div>
     </div>
     <div class="flex items-center gap-2">
@@ -88,19 +137,19 @@
         <button id="lang-ru" onclick="setLang('ru')" class="px-2.5 py-1.5 transition-all" style="background:transparent; color:#9ca3af;">RU</button>
       </div>
       <button onclick="importConfig()" title="Import" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-80" style="background:#1a1b23; border:1px solid #2a2b38; color:#9ca3af;" data-i18n-title="import_btn">
-        <span data-i18n="import_btn"></span>
+        <span class="header-btn-text" data-i18n="import_btn"></span>
       </button>
       <button onclick="exportConfig()" title="Export" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-80" style="background:#1a1b23; border:1px solid #2a2b38; color:#9ca3af;">
-        <span data-i18n="export_btn"></span>
+        <span class="header-btn-text" data-i18n="export_btn"></span>
       </button>
       <button id="logs-btn" onclick="toggleLogsPanel()" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-80 flex items-center gap-1.5" style="background:#1a1b23; border:1px solid #2a2b38; color:#9ca3af;" data-i18n-title="logs_btn_title">
         <span class="w-1.5 h-1.5 rounded-full inline-block" id="logs-btn-dot" style="background:#4b5563;"></span>
-        <span data-i18n="logs_btn"></span>
+        <span class="header-btn-text" data-i18n="logs_btn"></span>
         <span id="logs-btn-count" class="text-xs px-1.5 py-0.5 rounded" style="background:#2a2b38; color:#9ca3af; display:none;">0</span>
       </button>
       <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs" style="background:#14532d; color:#86efac;">
         <span class="w-1.5 h-1.5 rounded-full inline-block" style="background:#4ade80;"></span>
-        <span data-i18n="deployed"></span>
+        <span class="header-deployed-text" data-i18n="deployed"></span>
       </span>
     </div>
   </header>
@@ -579,17 +628,19 @@
             placeholder="${t('pm_label_placeholder')}"
             value="${nameEsc}"
             oninput="updateBlock('${group}', ${b.id}, 'name', this.value)"
-            class="flex-1 text-xs px-2 py-1 rounded text-gray-200 placeholder-gray-600 outline-none focus:ring-1"
+            class="block-label flex-1 text-xs px-2 py-1 rounded text-gray-200 placeholder-gray-600 outline-none focus:ring-1"
             style="background:#111218; border:1px solid #2a2b38;"
           />
-          <select
-            class="text-xs px-2 py-1 rounded-lg text-white outline-none focus:ring-1"
-            style="background:#111218; border:1px solid #2a2b38;"
-            onchange="updateBlock('${group}', ${b.id}, 'role', this.value)"
-          >${roleOpts}</select>
-          <button onclick="moveBlock('${group}', ${b.id}, -1)" ${i === 0 ? 'disabled' : ''} class="w-7 h-7 rounded flex items-center justify-center disabled:opacity-20 transition-colors hover:text-white" style="background:#111218; color:#6b7280;">▲</button>
-          <button onclick="moveBlock('${group}', ${b.id},  1)" ${i === total - 1 ? 'disabled' : ''} class="w-7 h-7 rounded flex items-center justify-center disabled:opacity-20 transition-colors hover:text-white" style="background:#111218; color:#6b7280;">▼</button>
-          <button onclick="removeBlock('${group}', ${b.id})" class="w-7 h-7 rounded flex items-center justify-center transition-colors" style="background:#111218; color:#ef4444;">✕</button>
+          <div class="block-controls flex items-center gap-1.5">
+            <select
+              class="text-xs px-2 py-1 rounded-lg text-white outline-none focus:ring-1"
+              style="background:#111218; border:1px solid #2a2b38;"
+              onchange="updateBlock('${group}', ${b.id}, 'role', this.value)"
+            >${roleOpts}</select>
+            <button onclick="moveBlock('${group}', ${b.id}, -1)" ${i === 0 ? 'disabled' : ''} class="w-7 h-7 rounded flex items-center justify-center disabled:opacity-20 transition-colors hover:text-white" style="background:#111218; color:#6b7280;">▲</button>
+            <button onclick="moveBlock('${group}', ${b.id},  1)" ${i === total - 1 ? 'disabled' : ''} class="w-7 h-7 rounded flex items-center justify-center disabled:opacity-20 transition-colors hover:text-white" style="background:#111218; color:#6b7280;">▼</button>
+            <button onclick="removeBlock('${group}', ${b.id})" class="w-7 h-7 rounded flex items-center justify-center transition-colors" style="background:#111218; color:#ef4444;">✕</button>
+          </div>
         </div>
         <textarea
           rows="4"
