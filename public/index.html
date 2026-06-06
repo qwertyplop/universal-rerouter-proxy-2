@@ -544,6 +544,7 @@
   state.logsEnabled = localStorage.getItem(LS_LOGS_ENABLED) === '1';
   state.logs = [];
   state.logsPanelOpen = false;
+  state.expandedLogs = new Set();
   let logsTimer = null;
 
   function setLogsEnabled(on) {
@@ -605,6 +606,7 @@
       const res = await fetch('/api/logs', { method: 'DELETE' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       state.logs = [];
+      state.expandedLogs.clear();
       updateLogsCount();
       renderLogs();
       showToast(t('logs_cleared'));
@@ -679,7 +681,9 @@
         : '';
       const bytes = e.bytesReceived != null ? (e.bytesReceived + 'B') : '';
       const chunks = e.chunksCount > 0 ? (e.chunksCount + ' chunks') : '';
+      const expanded = state.expandedLogs.has(idx);
       const idAttr = `log-${idx}`;
+      const hiddenClass = expanded ? '' : 'hidden';
       return `
         <div class="logs-row" data-idx="${idx}">
           <button class="w-full text-left p-3 flex flex-col gap-1.5" onclick="toggleLogDetail('${idAttr}')">
@@ -697,7 +701,7 @@
               ${chunks ? `<span>${escapeHtml(chunks)}</span>` : ''}
             </div>
           </button>
-          <div class="logs-detail hidden" id="log-detail-${idAttr}">
+          <div class="logs-detail ${hiddenClass}" id="log-detail-${idAttr}">
             <div class="p-3 space-y-3">
               ${e.error ? `<div class="logs-error-banner">${escapeHtml(e.error)}</div>` : ''}
               <div>
@@ -724,8 +728,15 @@
   }
 
   function toggleLogDetail(idAttr) {
+    const m = idAttr.match(/^log-(\d+)$/);
+    if (!m) return;
+    const idx = parseInt(m[1], 10);
     const el = document.getElementById('log-detail-' + idAttr);
-    if (el) el.classList.toggle('hidden');
+    if (!el) return;
+    const willExpand = el.classList.contains('hidden');
+    el.classList.toggle('hidden');
+    if (willExpand) state.expandedLogs.add(idx);
+    else            state.expandedLogs.delete(idx);
   }
 
   function buildConfig() {
