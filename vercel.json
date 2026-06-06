@@ -4,10 +4,10 @@
   "builds": [
     { "src": "api/index.py", "use": "@vercel/python" }
   ],
-  "routes": [
-    { "src": "/janitorai(.*)", "dest": "/api/index.py" },
-    { "src": "/sillytavern(.*)", "dest": "/api/index.py" },
-    { "src": "/health(.*)", "dest": "/api/index.py" },
-    { "src": "/(.*)", "dest": "/public/$1" }
+  "rewrites": [
+    { "source": "/janitorai/:path*", "destination": "/api/index" },
+    { "source": "/sillytavern/:path*", "destination": "/api/index" },
+    { "source": "/health/:path*", "destination": "/api/index" },
+    { "source": "/((?!api/).*)", "destination": "/public/index.html" }
   ]
 }
