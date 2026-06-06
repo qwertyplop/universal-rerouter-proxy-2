@@ -64,11 +64,17 @@
 
     /* Pulse animation for unsaved changes indicator */
     @keyframes pulse-slow {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.6); }
-      50%      { box-shadow: 0 0 0 8px rgba(124, 58, 237, 0); }
+      0%, 100% { 
+        background-color: #7c3aed;
+        box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.4);
+      }
+      50% { 
+        background-color: #a78bfa;
+        box-shadow: 0 0 20px 4px rgba(167, 139, 250, 0.6), 0 0 40px 8px rgba(124, 58, 237, 0.3);
+      }
     }
     .pulse-slow {
-      animation: pulse-slow 2.5s ease-in-out infinite;
+      animation: pulse-slow 2s ease-in-out infinite;
       border-radius: 0.75rem;
     }
 
