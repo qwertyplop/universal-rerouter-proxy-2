@@ -795,8 +795,22 @@
   function renderLogs() {
     const list = document.getElementById('logs-list');
     if (!list) return;
+
+    // ── Save scroll positions before DOM rebuild ──────────────────
+    const savedScrollTop = list.scrollTop;
+
+    // For each expanded log detail, remember its inner scroll position
+    // so scrolling inside a logs-json field isn't reset on refresh.
+    const expandedScrolls = {};
+    state.expandedLogs.forEach(idx => {
+      const detail = document.getElementById('log-detail-log-' + idx);
+      const json   = detail ? detail.querySelector('.logs-json') : null;
+      if (json) expandedScrolls[idx] = json.scrollTop;
+    });
+
     if (!state.logs || state.logs.length === 0) {
       list.innerHTML = '<div class="logs-empty">' + escapeHtml(t('logs_empty')) + '</div>';
+      list.scrollTop = savedScrollTop;   // nothing to restore inside, but keep list pos
       return;
     }
     const sorted = state.logs.map((e, idx) => ({ e, idx })).reverse();
@@ -858,6 +872,19 @@
         </div>
       `;
     }).join('');
+
+    // ── Restore scroll positions after DOM rebuild ─────────────────
+    // Main list: keep the same vertical position
+    list.scrollTop = savedScrollTop;
+
+    // Expanded log details: restore their inner scroll so the user
+    // can continue reading a long JSON body without it jumping to top.
+    state.expandedLogs.forEach(idx => {
+      if (expandedScrolls[idx] == null) return;
+      const detail = document.getElementById('log-detail-log-' + idx);
+      const json   = detail ? detail.querySelector('.logs-json') : null;
+      if (json) json.scrollTop = expandedScrolls[idx];
+    });
   }
 
   function toggleLogDetail(idAttr) {
