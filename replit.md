@@ -1,45 +1,50 @@
-# [Project name]
+# Universal Rerouter
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+An open-source, zero-config AI proxy for JanitorAI / SillyTavern. Deploy to Vercel in one click — no environment variables needed. Configure everything through the built-in UI.
 
-## Run & Operate
+## Deploy to Vercel
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+1. Fork this repo on GitHub
+2. Go to [vercel.com](https://vercel.com) → New Project → Import your fork
+3. Click **Deploy** — no settings needed
+
+## Project Structure
+
+```
+api/
+  index.py        Flask proxy (Vercel serverless function)
+public/
+  index.html      Configuration UI (single-file, vanilla JS + Tailwind)
+vercel.json       Vercel routing
+requirements.txt  Python dependencies
+```
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Python 3 + Flask + flask-cors (Vercel serverless)
+- Vanilla JS + Tailwind CSS CDN (no build step)
+- No database — config encoded in generated URLs (base64)
 
-## Where things live
+## Proxy Endpoints
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+| Path | Use with |
+|------|----------|
+| `/janitorai?t=...&c=...` | JanitorAI custom API URL |
+| `/sillytavern?t=...&c=...` | SillyTavern base URL |
+| `/sillytavern/chat/completions` | SillyTavern full completions path |
+| `/sillytavern/models` | SillyTavern model list |
+| `/health` | Health check |
 
-## Architecture decisions
+## URL Parameters
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- `t` — base64url of the upstream API URL
+- `c` — base64url of JSON config: `{"mode":"base"}` or `{"mode":"full","prepend_blocks":[...],"append_blocks":[...]}`
 
-## Product
+## Modes
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- **Base** — pure proxy + CORS + region bypass, no body modification
+- **Full** — everything in Base + prompt block injection (prepend/append system/user/assistant messages)
 
-## User preferences
+## User Preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
-
-## Gotchas
-
-_Populate as you build — sharp edges, "always run X before Y" rules._
-
-## Pointers
-
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+_Populate as you build._

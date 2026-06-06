@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Universal Rerouter</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            surface: '#111218',
+            card:    '#1a1b23',
+            border:  '#2a2b38',
+            accent:  '#7c3aed',
+            'accent-light': '#a78bfa',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background: #111218; }
+    .tab-active  { background: #7c3aed; color: #fff; }
+    .tab-inactive { background: transparent; color: #9ca3af; }
+    .tab-inactive:hover { color: #e5e7eb; }
+    .copy-btn { transition: all .15s; }
+    .copy-btn:active { transform: scale(.96); }
+    .block-card { border: 1px solid #2a2b38; transition: border-color .15s; }
+    .block-card:hover { border-color: #4c1d95; }
+    select option { background: #1a1b23; }
+    textarea { resize: vertical; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #111218; }
+    ::-webkit-scrollbar-thumb { background: #2a2b38; border-radius: 3px; }
+    .fade-in { animation: fadeIn .2s ease; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+  </style>
+</head>
+<body class="min-h-screen text-gray-100 font-mono">
+
+  <!-- Header -->
+  <header class="border-b border-border px-6 py-4 flex items-center justify-between sticky top-0 z-10" style="background:#111218;">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:#4c1d95;">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-accent-light" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-sm font-bold text-white tracking-wide">Universal Rerouter</h1>
+        <p class="text-xs text-gray-500">AI Proxy for JanitorAI / SillyTavern</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs" style="background:#14532d; color:#86efac;">
+        <span class="w-1.5 h-1.5 rounded-full bg-green-400 inline-block"></span>
+        Deployed
+      </span>
+    </div>
+  </header>
+
+  <main class="max-w-2xl mx-auto px-4 py-8 space-y-6">
+
+    <!-- Upstream URL -->
+    <section class="rounded-xl p-5 space-y-3" style="background:#1a1b23; border:1px solid #2a2b38;">
+      <label class="text-xs text-gray-400 uppercase tracking-widest">Upstream API URL</label>
+      <div class="flex gap-2">
+        <input
+          id="upstream-url"
+          type="url"
+          placeholder="https://api.openai.com/v1/chat/completions"
+          class="flex-1 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 outline-none focus:ring-2 focus:ring-accent"
+          style="background:#0d0e14; border:1px solid #2a2b38;"
+        />
+        <button onclick="saveAndRefresh()" class="px-4 py-2.5 rounded-lg text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-95" style="background:#7c3aed;">
+          Save
+        </button>
+      </div>
+      <p class="text-xs text-gray-500">The API endpoint requests will be forwarded to. Examples: <code class="text-purple-400">https://api.openai.com/v1/chat/completions</code>, a reverse proxy URL, etc.</p>
+    </section>
+
+    <!-- Mode Selector -->
+    <section class="rounded-xl p-5 space-y-4" style="background:#1a1b23; border:1px solid #2a2b38;">
+      <label class="text-xs text-gray-400 uppercase tracking-widest">Proxy Mode</label>
+      <div class="grid grid-cols-2 gap-3">
+        <button id="tab-base" onclick="setMode('base')"
+          class="rounded-lg py-3 px-4 text-sm font-semibold transition-all border border-transparent"
+          style="background:#7c3aed; color:#fff;">
+          ⚡ Base
+        </button>
+        <button id="tab-full" onclick="setMode('full')"
+          class="rounded-lg py-3 px-4 text-sm font-semibold transition-all border text-gray-400 hover:text-white"
+          style="background:transparent; border-color:#2a2b38;">
+          🧠 Full
+        </button>
+      </div>
+
+      <!-- Base description -->
+      <div id="desc-base" class="text-xs text-gray-400 leading-relaxed space-y-1">
+        <p>🔒 <strong class="text-gray-300">CORS bypass</strong> — removes Origin/Referer headers so browser restrictions don't apply.</p>
+        <p>🌍 <strong class="text-gray-300">Region bypass</strong> — traffic goes through the Vercel server, not the user's location.</p>
+        <p>🔁 <strong class="text-gray-300">Pure forwarding</strong> — the request body is not modified in any way.</p>
+      </div>
+
+      <!-- Full description -->
+      <div id="desc-full" class="hidden text-xs text-gray-400 leading-relaxed space-y-1">
+        <p>✅ Everything from Base, plus:</p>
+        <p>🧱 <strong class="text-gray-300">Prompt blocks</strong> — inject system / user / assistant messages at the start or end of every conversation.</p>
+        <p>🔧 <strong class="text-gray-300">No-code editor</strong> — build your prompt template visually, no editing code required.</p>
+      </div>
+    </section>
+
+    <!-- Full Mode: Prompt Manager -->
+    <section id="prompt-manager" class="hidden rounded-xl p-5 space-y-4 fade-in" style="background:#1a1b23; border:1px solid #2a2b38;">
+      <div class="flex items-center justify-between">
+        <label class="text-xs text-gray-400 uppercase tracking-widest">Prompt Blocks</label>
+        <div class="flex gap-2">
+          <button onclick="addBlock('prepend')" class="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all hover:opacity-90" style="background:#1e3a5f; color:#93c5fd;">+ Prepend</button>
+          <button onclick="addBlock('append')"  class="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all hover:opacity-90" style="background:#3b1f5e; color:#c4b5fd;">+ Append</button>
+        </div>
+      </div>
+
+      <div class="text-xs text-gray-500 space-y-0.5">
+        <p><span class="inline-block w-2 h-2 rounded-sm mr-1" style="background:#1e3a5f;"></span><strong class="text-blue-300">Prepend</strong> — injected at the <em>start</em> of the messages array</p>
+        <p><span class="inline-block w-2 h-2 rounded-sm mr-1" style="background:#3b1f5e;"></span><strong class="text-purple-300">Append</strong> — injected at the <em>end</em> (after the user's last message)</p>
+      </div>
+
+      <div id="blocks-list" class="space-y-3">
+        <!-- blocks rendered here -->
+      </div>
+
+      <div id="blocks-empty" class="text-center py-8 text-gray-600 text-sm">
+        No blocks yet. Add a <strong>Prepend</strong> or <strong>Append</strong> block above.
+      </div>
+    </section>
+
+    <!-- Generated URLs -->
+    <section id="urls-section" class="hidden rounded-xl p-5 space-y-4" style="background:#1a1b23; border:1px solid #2a2b38;">
+      <label class="text-xs text-gray-400 uppercase tracking-widest">Generated Proxy URLs</label>
+      <p class="text-xs text-gray-500">Copy the URL for your AI client and paste it as the custom API endpoint.</p>
+
+      <div class="space-y-3">
+        <div>
+          <p class="text-xs text-gray-500 mb-1.5">JanitorAI (Custom API URL field)</p>
+          <div class="flex gap-2 items-center">
+            <code id="url-janitor" class="flex-1 text-xs px-3 py-2.5 rounded-lg truncate text-purple-300" style="background:#0d0e14; border:1px solid #2a2b38;"></code>
+            <button onclick="copyUrl('url-janitor', this)" class="copy-btn px-3 py-2.5 rounded-lg text-xs font-semibold text-white" style="background:#2a2b38; min-width:64px;">Copy</button>
+          </div>
+        </div>
+
+        <div>
+          <p class="text-xs text-gray-500 mb-1.5">SillyTavern (API Base URL — the path, not full URL)</p>
+          <div class="flex gap-2 items-center">
+            <code id="url-silly" class="flex-1 text-xs px-3 py-2.5 rounded-lg truncate text-purple-300" style="background:#0d0e14; border:1px solid #2a2b38;"></code>
+            <button onclick="copyUrl('url-silly', this)" class="copy-btn px-3 py-2.5 rounded-lg text-xs font-semibold text-white" style="background:#2a2b38; min-width:64px;">Copy</button>
+          </div>
+        </div>
+      </div>
+
+      <details class="text-xs text-gray-500">
+        <summary class="cursor-pointer hover:text-gray-300 transition-colors">Setup guide</summary>
+        <div class="mt-3 space-y-4 leading-relaxed">
+          <div>
+            <p class="text-gray-300 font-semibold mb-1">JanitorAI</p>
+            <ol class="list-decimal list-inside space-y-1 text-gray-400">
+              <li>Open JanitorAI → Settings → API</li>
+              <li>Select <strong>OpenAI</strong> as provider</li>
+              <li>Paste the JanitorAI URL above into <strong>Custom API URL</strong></li>
+              <li>Put any value in the API Key field (forwarded as-is)</li>
+            </ol>
+          </div>
+          <div>
+            <p class="text-gray-300 font-semibold mb-1">SillyTavern</p>
+            <ol class="list-decimal list-inside space-y-1 text-gray-400">
+              <li>Open ST → API Connections</li>
+              <li>Choose <strong>OpenAI Compatible</strong></li>
+              <li>Paste the SillyTavern URL above into <strong>Custom Endpoint (Base URL)</strong></li>
+              <li>Set your API key as needed by your upstream</li>
+            </ol>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <!-- No URL state -->
+    <section id="no-url-notice" class="rounded-xl p-5 text-center text-sm text-gray-500" style="background:#1a1b23; border:1px dashed #2a2b38;">
+      Enter an upstream URL above and click <strong class="text-gray-300">Save</strong> to generate your proxy endpoint.
+    </section>
+
+    <!-- Footer -->
+    <footer class="text-center text-xs text-gray-600 pt-2 pb-6 space-y-1">
+      <p>Settings are stored locally in your browser.</p>
+      <p>The upstream URL is encoded in the generated link — no server-side config needed.</p>
+    </footer>
+
+  </main>
+
+  <script>
+    // ============================================================
+    // State
+    // ============================================================
+    const LS_URL    = 'rerouter_upstream';
+    const LS_MODE   = 'rerouter_mode';
+    const LS_BLOCKS = 'rerouter_blocks';
+
+    let state = {
+      upstream: localStorage.getItem(LS_URL)    || '',
+      mode:     localStorage.getItem(LS_MODE)   || 'base',
+      blocks:   JSON.parse(localStorage.getItem(LS_BLOCKS) || '[]'),
+    };
+
+    // ============================================================
+    // Base64url
+    // ============================================================
+    function b64encode(str) {
+      return btoa(unescape(encodeURIComponent(str)))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    // ============================================================
+    // Upstream URL
+    // ============================================================
+    function saveAndRefresh() {
+      const val = document.getElementById('upstream-url').value.trim();
+      state.upstream = val;
+      localStorage.setItem(LS_URL, val);
+      refresh();
+    }
+
+    // ============================================================
+    // Mode
+    // ============================================================
+    function setMode(mode) {
+      state.mode = mode;
+      localStorage.setItem(LS_MODE, mode);
+      refresh();
+    }
+
+    // ============================================================
+    // Blocks
+    // ============================================================
+    function saveBlocks() {
+      localStorage.setItem(LS_BLOCKS, JSON.stringify(state.blocks));
+    }
+
+    function addBlock(position) {
+      state.blocks.push({ id: Date.now(), position, role: 'system', content: '' });
+      saveBlocks();
+      renderBlocks();
+      refreshUrls();
+    }
+
+    function removeBlock(id) {
+      state.blocks = state.blocks.filter(b => b.id !== id);
+      saveBlocks();
+      renderBlocks();
+      refreshUrls();
+    }
+
+    function moveBlock(id, dir) {
+      const idx = state.blocks.findIndex(b => b.id === id);
+      if (idx < 0) return;
+      const newIdx = idx + dir;
+      if (newIdx < 0 || newIdx >= state.blocks.length) return;
+      [state.blocks[idx], state.blocks[newIdx]] = [state.blocks[newIdx], state.blocks[idx]];
+      saveBlocks();
+      renderBlocks();
+      refreshUrls();
+    }
+
+    function updateBlock(id, field, value) {
+      const b = state.blocks.find(b => b.id === id);
+      if (b) { b[field] = value; saveBlocks(); refreshUrls(); }
+    }
+
+    function renderBlocks() {
+      const list  = document.getElementById('blocks-list');
+      const empty = document.getElementById('blocks-empty');
+
+      if (state.blocks.length === 0) {
+        list.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+      }
+      empty.classList.add('hidden');
+
+      list.innerHTML = state.blocks.map((b, i) => {
+        const isFirst = i === 0;
+        const isLast  = i === state.blocks.length - 1;
+        const isPre   = b.position === 'prepend';
+        const bgColor = isPre ? '#0d1a2e' : '#1a0d2e';
+        const badge   = isPre
+          ? `<span class="text-xs px-2 py-0.5 rounded font-semibold" style="background:#1e3a5f;color:#93c5fd;">↑ prepend</span>`
+          : `<span class="text-xs px-2 py-0.5 rounded font-semibold" style="background:#3b1f5e;color:#c4b5fd;">↓ append</span>`;
+
+        const roleOpts = ['system','user','assistant'].map(r =>
+          `<option value="${r}" ${b.role === r ? 'selected' : ''}>${r}</option>`
+        ).join('');
+
+        return `
+          <div class="block-card rounded-xl p-4 space-y-3" style="background:${bgColor};" data-id="${b.id}">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2 flex-wrap">
+                ${badge}
+                <select
+                  class="text-xs px-2 py-1 rounded-lg text-white outline-none focus:ring-1 focus:ring-accent"
+                  style="background:#111218; border:1px solid #2a2b38;"
+                  onchange="updateBlock(${b.id}, 'role', this.value)"
+                >${roleOpts}</select>
+              </div>
+              <div class="flex items-center gap-1">
+                <button onclick="moveBlock(${b.id}, -1)" ${isFirst ? 'disabled' : ''} class="w-7 h-7 rounded flex items-center justify-center text-gray-500 hover:text-white disabled:opacity-20 transition-colors" style="background:#111218;">▲</button>
+                <button onclick="moveBlock(${b.id},  1)" ${isLast  ? 'disabled' : ''} class="w-7 h-7 rounded flex items-center justify-center text-gray-500 hover:text-white disabled:opacity-20 transition-colors" style="background:#111218;">▼</button>
+                <button onclick="removeBlock(${b.id})" class="w-7 h-7 rounded flex items-center justify-center text-red-500 hover:text-red-300 transition-colors" style="background:#111218;">✕</button>
+              </div>
+            </div>
+            <textarea
+              rows="4"
+              placeholder="Enter the message content for this block..."
+              class="w-full rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 outline-none focus:ring-2 focus:ring-accent"
+              style="background:#111218; border:1px solid #2a2b38;"
+              oninput="updateBlock(${b.id}, 'content', this.value)"
+            >${b.content}</textarea>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ============================================================
+    // URL Generation
+    // ============================================================
+    function buildConfig() {
+      if (state.mode === 'base') {
+        return { mode: 'base' };
+      }
+      return {
+        mode: 'full',
+        prepend_blocks: state.blocks.filter(b => b.position === 'prepend').map(b => ({ role: b.role, content: b.content })),
+        append_blocks:  state.blocks.filter(b => b.position === 'append').map(b => ({ role: b.role, content: b.content })),
+      };
+    }
+
+    function refreshUrls() {
+      const section = document.getElementById('urls-section');
+      const notice  = document.getElementById('no-url-notice');
+
+      if (!state.upstream) {
+        section.classList.add('hidden');
+        notice.classList.remove('hidden');
+        return;
+      }
+
+      section.classList.remove('hidden');
+      notice.classList.add('hidden');
+
+      const base = window.location.origin;
+      const t    = b64encode(state.upstream);
+      const c    = b64encode(JSON.stringify(buildConfig()));
+
+      document.getElementById('url-janitor').textContent = `${base}/janitorai?t=${t}&c=${c}`;
+      document.getElementById('url-silly').textContent   = `${base}/sillytavern?t=${t}&c=${c}`;
+    }
+
+    // ============================================================
+    // Copy button
+    // ============================================================
+    function copyUrl(elId, btn) {
+      const text = document.getElementById(elId).textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = '✓ Copied';
+        btn.style.background = '#14532d';
+        setTimeout(() => { btn.textContent = orig; btn.style.background = '#2a2b38'; }, 1500);
+      });
+    }
+
+    // ============================================================
+    // Refresh UI
+    // ============================================================
+    function refresh() {
+      // Upstream input
+      document.getElementById('upstream-url').value = state.upstream;
+
+      // Tabs
+      const btnBase = document.getElementById('tab-base');
+      const btnFull = document.getElementById('tab-full');
+      const descBase = document.getElementById('desc-base');
+      const descFull = document.getElementById('desc-full');
+      const pm = document.getElementById('prompt-manager');
+
+      if (state.mode === 'base') {
+        btnBase.style.background = '#7c3aed'; btnBase.style.color = '#fff'; btnBase.style.borderColor = 'transparent';
+        btnFull.style.background = 'transparent'; btnFull.style.color = '#9ca3af'; btnFull.style.borderColor = '#2a2b38';
+        descBase.classList.remove('hidden'); descFull.classList.add('hidden');
+        pm.classList.add('hidden');
+      } else {
+        btnFull.style.background = '#7c3aed'; btnFull.style.color = '#fff'; btnFull.style.borderColor = 'transparent';
+        btnBase.style.background = 'transparent'; btnBase.style.color = '#9ca3af'; btnBase.style.borderColor = '#2a2b38';
+        descFull.classList.remove('hidden'); descBase.classList.add('hidden');
+        pm.classList.remove('hidden');
+        pm.classList.add('fade-in');
+        renderBlocks();
+      }
+
+      refreshUrls();
+    }
+
+    // ============================================================
+    // Init
+    // ============================================================
+    document.addEventListener('DOMContentLoaded', refresh);
+
+    // Also update URLs on Enter in input
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('upstream-url').addEventListener('keydown', e => {
+        if (e.key === 'Enter') saveAndRefresh();
+      });
+    });
+  </script>
+</body>
+</html>
