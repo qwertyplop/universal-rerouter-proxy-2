@@ -1,8 +1,12 @@
 {
   "version": 2,
-  "rewrites": [
-    { "source": "/janitorai/:path*", "destination": "/api/proxy" },
-    { "source": "/sillytavern/:path*", "destination": "/api/proxy" },
-    { "source": "/health/:path*", "destination": "/api/proxy" }
+  "builds": [
+    { "src": "api/proxy.py", "use": "@vercel/python" }
+  ],
+  "routes": [
+    { "src": "/(janitorai|sillytavern|health|api/proxy)(/.*)?", "dest": "api/proxy.py" },
+    { "src": "/(.+\\.\\w+)$", "dest": "/$1" },
+    { "src": "/", "dest": "/index.html" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
