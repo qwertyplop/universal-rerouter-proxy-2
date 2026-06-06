@@ -380,6 +380,7 @@
       footer_line1:      "Settings are stored locally in your browser. Use Export to back up and Import to restore on another device.",
       footer_line2:      "The upstream URL is encoded in the generated link — no server-side config needed.",
       toast_imported:    "✓ Config imported successfully",
+      toast_saved:       "✓ Saved / Сохранено",
       toast_error:       "✗ Invalid JSON file",
       logs_btn:          "Logs",
       logs_btn_title:    "View request logs",
@@ -440,6 +441,7 @@
       footer_line1:      "Настройки хранятся локально в браузере. Используйте Экспорт для резервной копии и Импорт для восстановления на другом устройстве.",
       footer_line2:      "Upstream URL закодирован прямо в ссылке — серверное хранилище не нужно.",
       toast_imported:    "✓ Конфигурация импортирована",
+      toast_saved:       "✓ Сохранено",
       toast_error:       "✗ Некорректный JSON файл",
       logs_btn:          "Логи",
       logs_btn_title:    "Посмотреть логи запросов",
@@ -523,8 +525,8 @@
       localStorage.setItem(LS_URL, val);
     }
     setLogsEnabled(document.getElementById('logs-enabled-toggle').checked);
-    refresh();
-    refreshUrls();
+    saveBlocks();          // persist current blocks to localStorage
+    refreshUrls();         // re-generate URLs with latest blocks
     showToast(t('toast_saved'));
   }
 
@@ -575,7 +577,6 @@
     const block = { id: Date.now() + Math.random(), role: 'system', name: '', content: '' };
     if (position === 'prepend') state.prependBlocks.push(block);
     else                        state.appendBlocks.push(block);
-    saveBlocks();
     renderBlocks();
   }
 
@@ -584,7 +585,6 @@
     const idx = arr.findIndex(b => b.id === id);
     if (idx < 0) return;
     arr.splice(idx, 1);
-    saveBlocks();
     renderBlocks();
   }
 
@@ -595,7 +595,6 @@
     const newIdx = idx + dir;
     if (newIdx < 0 || newIdx >= arr.length) return;
     [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
-    saveBlocks();
     renderBlocks();
   }
 
@@ -604,7 +603,7 @@
     const b = arr.find(b => b.id === id);
     if (!b) return;
     b[field] = value;
-    saveBlocks();
+    // Don't persist to localStorage or re-generate URLs until Save is pressed
     if (field === 'role') renderBlocks();  // role changes the border colour, re-render
   }
 
@@ -676,15 +675,35 @@
   state.logsPanelOpen = false;
   state.expandedLogs = new Set();
 
+  let logPollInterval = null;
+
+  function startLogPolling() {
+    stopLogPolling();
+    logPollInterval = setInterval(() => {
+      if (state.logsEnabled && state.logsPanelOpen) {
+        fetchLogs();
+      }
+    }, 3000);
+  }
+
+  function stopLogPolling() {
+    if (logPollInterval) {
+      clearInterval(logPollInterval);
+      logPollInterval = null;
+    }
+  }
+
   function setLogsEnabled(on) {
     state.logsEnabled = !!on;
-       localStorage.setItem(LS_LOGS_ENABLED, state.logsEnabled ? '1' : '0');
-       const btnDot = document.getElementById('logs-btn-dot');
-       const enDot = document.getElementById('logs-enable-dot');
-       const color = state.logsEnabled ? '#4ade80' : '#4b5563';
-       if (btnDot) btnDot.style.background = color;
-       if (enDot) enDot.style.background = color;
-     }
+    localStorage.setItem(LS_LOGS_ENABLED, state.logsEnabled ? '1' : '0');
+    const btnDot = document.getElementById('logs-btn-dot');
+    const enDot = document.getElementById('logs-enable-dot');
+    const color = state.logsEnabled ? '#4ade80' : '#4b5563';
+    if (btnDot) btnDot.style.background = color;
+    if (enDot) enDot.style.background = color;
+    if (!state.logsEnabled) stopLogPolling();
+    else if (state.logsPanelOpen) startLogPolling();
+  }
 
   function toggleLogsPanel() {
     const panel = document.getElementById('logs-panel');
@@ -695,10 +714,13 @@
       panel.classList.remove('open');
       backdrop.classList.remove('open');
       state.logsPanelOpen = false;
+      stopLogPolling();
     } else {
       panel.classList.add('open');
       backdrop.classList.add('open');
       state.logsPanelOpen = true;
+      if (state.logsEnabled) startLogPolling();
+      else stopLogPolling();
       fetchLogs();
     }
   }
