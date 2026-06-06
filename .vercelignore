@@ -1,0 +1,43 @@
+# Vercel should see ONLY the Python proxy. Hide the entire
+# Replit-era pnpm monorepo (workspaces, lib, scripts, artifacts, TS configs)
+# so Vercel does not auto-detect Express / Node from artifacts/api-server.
+
+# Node monorepo scaffolding
+artifacts/
+lib/
+scripts/
+.migration-backup/
+package.json
+pnpm-workspace.yaml
+pnpm-lock.yaml
+.npmrc
+tsconfig.json
+tsconfig.base.json
+**/tsconfig.json
+**/tsconfig.base.json
+
+# Replit-specific
+.replit
+.replitignore
+replit.md
+
+# Node deps / build output
+node_modules/
+dist/
+out-tsc/
+*.tsbuildinfo
+
+# Python build artifacts
+__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# VCS (Vercel already excludes .git, defensive)
+.git/
