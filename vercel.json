@@ -1,9 +1,6 @@
 {
   "version": 2,
   "routes": [
-    { "src": "^/janitorai(/.*)?$", "dest": "/api/index" },
-    { "src": "^/sillytavern(/.*)?$", "dest": "/api/index" },
-    { "src": "^/health(/.*)?$", "dest": "/api/index" },
-    { "src": "^/api(/.*)?$", "dest": "/api/index" }
+    { "src": "^/$", "dest": "/this-file-does-not-exist.html" }
   ]
 }
