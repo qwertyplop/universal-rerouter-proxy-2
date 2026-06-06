@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Universal Rerouter</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            surface: '#111218',
+            card:    '#1a1b23',
+            border:  '#2a2b38',
+            accent:  '#7c3aed',
+            'accent-light': '#a78bfa',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background: #111218; }
+    .copy-btn { transition: all .15s; }
+    .copy-btn:active { transform: scale(.96); }
+    .block-card { border: 1px solid #2a2b38; transition: border-color .15s; }
+    .block-card:hover { border-color: #4c1d95; }
+    select option { background: #1a1b23; }
+    textarea { resize: vertical; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #111218; }
+    ::-webkit-scrollbar-thumb { background: #2a2b38; border-radius: 3px; }
+    .fade-in { animation: fadeIn .2s ease; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+  </style>
+</head>
+<body class="min-h-screen text-gray-100 font-mono">
+
+  <!-- Hidden file input for import -->
+  <input type="file" id="import-file-input" accept=".json,application/json" class="hidden" onchange="handleImportFile(this)" />
+
+  <!-- Header -->
+  <header class="border-b px-6 py-4 flex items-center justify-between sticky top-0 z-10" style="background:#111218; border-color:#2a2b38;">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:#4c1d95;">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="#a78bfa" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-sm font-bold text-white tracking-wide">Universal Rerouter</h1>
+        <p class="text-xs text-gray-500" data-i18n="subtitle"></p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <!-- Lang toggle -->
+      <div class="flex rounded-lg overflow-hidden text-xs font-semibold" style="border:1px solid #2a2b38;">
+        <button id="lang-en" onclick="setLang('en')" class="px-2.5 py-1.5 transition-all" style="background:#7c3aed; color:#fff;">EN</button>
+        <button id="lang-ru" onclick="setLang('ru')" class="px-2.5 py-1.5 transition-all" style="background:transparent; color:#9ca3af;">RU</button>
+      </div>
+      <button onclick="importConfig()" title="Import" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-80" style="background:#1a1b23; border:1px solid #2a2b38; color:#9ca3af;" data-i18n-title="import_btn">
+        <span data-i18n="import_btn"></span>
+      </button>
+      <button onclick="exportConfig()" title="Export" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:opacity-80" style="background:#1a1b23; border:1px solid #2a2b38; color:#9ca3af;">
+        <span data-i18n="export_btn"></span>
+      </button>
+      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs" style="background:#14532d; color:#86efac;">
+        <span class="w-1.5 h-1.5 rounded-full inline-block" style="background:#4ade80;"></span>
+        <span data-i18n="deployed"></span>
+      </span>
+    </div>
+  </header>
+
+  <main class="max-w-2xl mx-auto px-4 py-8 space-y-6">
+
+    <!-- Upstream URL -->
+    <section class="rounded-xl p-5 space-y-3" style="background:#1a1b23; border:1px solid #2a2b38;">
+      <label class="text-xs text-gray-400 uppercase tracking-widest" data-i18n="upstream_label"></label>
+      <div class="flex gap-2">
+        <input
+          id="upstream-url"
+          type="url"
+          class="flex-1 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 outline-none focus:ring-2 focus:ring-accent"
+          style="background:#0d0e14; border:1px solid #2a2b38;"
+          data-i18n-placeholder="upstream_placeholder"
+        />
+        <button onclick="saveAndRefresh()" class="px-4 py-2.5 rounded-lg text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-95" style="background:#7c3aed;" data-i18n="save_btn"></button>
+      </div>
+      <p class="text-xs text-gray-500" data-i18n-html="upstream_hint"></p>
+    </section>
+
+    <!-- Mode Selector -->
+    <section class="rounded-xl p-5 space-y-4" style="background:#1a1b23; border:1px solid #2a2b38;">
+      <label class="text-xs text-gray-400 uppercase tracking-widest" data-i18n="mode_label"></label>
+      <div class="grid grid-cols-2 gap-3">
+        <button id="tab-base" onclick="setMode('base')"
+          class="rounded-lg py-3 px-4 text-sm font-semibold transition-all border border-transparent"
+          style="background:#7c3aed; color:#fff;">
+          ⚡ Base
+        </button>
+        <button id="tab-full" onclick="setMode('full')"
+          class="rounded-lg py-3 px-4 text-sm font-semibold transition-all border"
+          style="background:transparent; border-color:#2a2b38; color:#9ca3af;">
+          🧠 Full
+        </button>
+      </div>
+
+      <div id="desc-base" class="text-xs text-gray-400 leading-relaxed space-y-1">
+        <p>🔒 <strong class="text-gray-300" data-i18n="base_cors_title"></strong> — <span data-i18n="base_cors_desc"></span></p>
+        <p>🌍 <strong class="text-gray-300" data-i18n="base_region_title"></strong> — <span data-i18n="base_region_desc"></span></p>
+        <p>🔁 <strong class="text-gray-300" data-i18n="base_forward_title"></strong> — <span data-i18n="base_forward_desc"></span></p>
+      </div>
+
+      <div id="desc-full" class="hidden text-xs text-gray-400 leading-relaxed space-y-1">
+        <p>✅ <span data-i18n="full_plus"></span></p>
+        <p>🧱 <strong class="text-gray-300" data-i18n="full_blocks_title"></strong> — <span data-i18n="full_blocks_desc"></span></p>
+        <p>🔧 <strong class="text-gray-300" data-i18n="full_nocode_title"></strong> — <span data-i18n="full_nocode_desc"></span></p>
+      </div>
+    </section>
+
+    <!-- Full Mode: Prompt Manager (hidden in Base) -->
+    <section id="prompt-manager" class="hidden rounded-xl p-5 space-y-4 fade-in" style="background:#1a1b23; border:1px solid #2a2b38;">
+      <div class="flex items-center justify-between">
+        <label class="text-xs text-gray-400 uppercase tracking-widest" data-i18n="pm_label"></label>
+        <div class="flex gap-2">
+          <button onclick="addBlock('prepend')" class="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all hover:opacity-90" style="background:#1e3a5f; color:#93c5fd;" data-i18n="pm_add_prepend"></button>
+          <button onclick="addBlock('append')"  class="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all hover:opacity-90" style="background:#3b1f5e; color:#c4b5fd;" data-i18n="pm_add_append"></button>
+        </div>
+      </div>
+
+      <div class="text-xs text-gray-500 space-y-0.5">
+        <p><span class="inline-block w-2 h-2 rounded-sm mr-1" style="background:#1e3a5f;"></span><strong class="text-blue-300" data-i18n="pm_prepend_word"></strong> — <span data-i18n="pm_prepend_desc"></span></p>
+        <p><span class="inline-block w-2 h-2 rounded-sm mr-1" style="background:#3b1f5e;"></span><strong class="text-purple-300" data-i18n="pm_append_word"></strong> — <span data-i18n="pm_append_desc"></span></p>
+      </div>
+
+      <div id="blocks-list" class="space-y-3"></div>
+      <div id="blocks-empty" class="text-center py-8 text-gray-600 text-sm">
+        <span data-i18n="pm_empty"></span>
+      </div>
+    </section>
+
+    <!-- Generated URLs -->
+    <section id="urls-section" class="hidden rounded-xl p-5 space-y-4" style="background:#1a1b23; border:1px solid #2a2b38;">
+      <label class="text-xs text-gray-400 uppercase tracking-widest" data-i18n="urls_label"></label>
+      <p class="text-xs text-gray-500" data-i18n="urls_hint"></p>
+
+      <div class="space-y-3">
+        <div>
+          <p class="text-xs text-gray-500 mb-1.5" data-i18n="urls_janitor_label"></p>
+          <div class="flex gap-2 items-center">
+            <code id="url-janitor" class="flex-1 text-xs px-3 py-2.5 rounded-lg truncate text-purple-300" style="background:#0d0e14; border:1px solid #2a2b38;"></code>
+            <button onclick="copyUrl('url-janitor', this)" class="copy-btn px-3 py-2.5 rounded-lg text-xs font-semibold text-white" style="background:#2a2b38; min-width:64px;" data-i18n="copy_btn"></button>
+          </div>
+        </div>
+        <div>
+          <p class="text-xs text-gray-500 mb-1.5" data-i18n="urls_silly_label"></p>
+          <div class="flex gap-2 items-center">
+            <code id="url-silly" class="flex-1 text-xs px-3 py-2.5 rounded-lg truncate text-purple-300" style="background:#0d0e14; border:1px solid #2a2b38;"></code>
+            <button onclick="copyUrl('url-silly', this)" class="copy-btn px-3 py-2.5 rounded-lg text-xs font-semibold text-white" style="background:#2a2b38; min-width:64px;" data-i18n="copy_btn"></button>
+          </div>
+        </div>
+      </div>
+
+      <details class="text-xs text-gray-500">
+        <summary class="cursor-pointer hover:text-gray-300 transition-colors" data-i18n="setup_guide"></summary>
+        <div class="mt-3 space-y-4 leading-relaxed">
+          <div>
+            <p class="text-gray-300 font-semibold mb-1">JanitorAI</p>
+            <ol class="list-decimal list-inside space-y-1 text-gray-400" data-i18n-html="guide_janitor"></ol>
+          </div>
+          <div>
+            <p class="text-gray-300 font-semibold mb-1">SillyTavern</p>
+            <ol class="list-decimal list-inside space-y-1 text-gray-400" data-i18n-html="guide_silly"></ol>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <!-- No URL state -->
+    <section id="no-url-notice" class="rounded-xl p-5 text-center text-sm text-gray-500" style="background:#1a1b23; border:1px dashed #2a2b38;">
+      <span data-i18n-html="no_url_notice"></span>
+    </section>
+
+    <footer class="text-center text-xs text-gray-600 pt-2 pb-6 space-y-1">
+      <p data-i18n="footer_line1"></p>
+      <p data-i18n="footer_line2"></p>
+    </footer>
+  </main>
+
+  <script>
+  // ============================================================
+  // Translations
+  // ============================================================
+  const T = {
+    en: {
+      subtitle:          "AI Proxy for JanitorAI / SillyTavern",
+      import_btn:        "↑ Import",
+      export_btn:        "↓ Export",
+      deployed:          "Deployed",
+      upstream_label:    "Upstream API URL",
+      upstream_placeholder: "https://api.openai.com/v1/chat/completions",
+      upstream_hint:     'The API endpoint requests will be forwarded to. Example: <code class="text-purple-400">https://api.openai.com/v1/chat/completions</code>',
+      save_btn:          "Save",
+      mode_label:        "Proxy Mode",
+      base_cors_title:   "CORS bypass",
+      base_cors_desc:    "removes Origin/Referer headers so browser restrictions don't apply.",
+      base_region_title: "Region bypass",
+      base_region_desc:  "traffic goes through the Vercel server, not the user's location.",
+      base_forward_title:"Pure forwarding",
+      base_forward_desc: "the request body is not modified in any way.",
+      full_plus:         "Everything from Base, plus:",
+      full_blocks_title: "Prompt blocks",
+      full_blocks_desc:  "inject system / user / assistant messages at the start or end of every conversation.",
+      full_nocode_title: "No-code editor",
+      full_nocode_desc:  "build your prompt template visually, no editing code required.",
+      pm_label:          "Prompt Blocks",
+      pm_add_prepend:    "+ Prepend",
+      pm_add_append:     "+ Append",
+      pm_prepend_word:   "Prepend",
+      pm_prepend_desc:   "injected at the start of the messages array",
+      pm_append_word:    "Append",
+      pm_append_desc:    "injected at the end (after the user's last message)",
+      pm_empty:          'No blocks yet. Add a <strong>Prepend</strong> or <strong>Append</strong> block above.',
+      pm_block_placeholder: "Enter the message content for this block...",
+      urls_label:        "Generated Proxy URLs",
+      urls_hint:         "Copy the URL for your AI client and paste it as the custom API endpoint.",
+      urls_janitor_label:"JanitorAI (Custom API URL field)",
+      urls_silly_label:  "SillyTavern (API Base URL)",
+      copy_btn:          "Copy",
+      copy_done:         "✓ Copied",
+      setup_guide:       "Setup guide",
+      guide_janitor:     "<li>Open JanitorAI → Settings → API</li><li>Select <strong>OpenAI</strong> as provider</li><li>Paste the URL above into <strong>Custom API URL</strong></li><li>Put any value in the API Key field</li>",
+      guide_silly:       "<li>Open ST → API Connections</li><li>Choose <strong>OpenAI Compatible</strong></li><li>Paste the URL into <strong>Custom Endpoint (Base URL)</strong></li><li>Set your API key as needed</li>",
+      no_url_notice:     'Enter an upstream URL above and click <strong class="text-gray-300">Save</strong> to generate your proxy endpoint.',
+      footer_line1:      "Settings are stored locally in your browser. Use Export to back up and Import to restore on another device.",
+      footer_line2:      "The upstream URL is encoded in the generated link — no server-side config needed.",
+      toast_imported:    "✓ Config imported successfully",
+      toast_error:       "✗ Invalid JSON file",
+    },
+    ru: {
+      subtitle:          "AI прокси для JanitorAI / SillyTavern",
+      import_btn:        "↑ Импорт",
+      export_btn:        "↓ Экспорт",
+      deployed:          "Развёрнут",
+      upstream_label:    "URL upstream API",
+      upstream_placeholder: "https://api.openai.com/v1/chat/completions",
+      upstream_hint:     'Endpoint, на который будут пересылаться запросы. Пример: <code class="text-purple-400">https://api.openai.com/v1/chat/completions</code>',
+      save_btn:          "Сохранить",
+      mode_label:        "Режим прокси",
+      base_cors_title:   "Обход CORS",
+      base_cors_desc:    "убирает заголовки Origin/Referer, устраняя блокировки браузера.",
+      base_region_title: "Обход регионов",
+      base_region_desc:  "трафик идёт через сервер Vercel, а не через локацию пользователя.",
+      base_forward_title:"Чистый проброс",
+      base_forward_desc: "тело запроса передаётся без каких-либо изменений.",
+      full_plus:         "Всё из Base, плюс:",
+      full_blocks_title: "Промпт блоки",
+      full_blocks_desc:  "инжектирует system / user / assistant сообщения в начало или конец каждого диалога.",
+      full_nocode_title: "No-code редактор",
+      full_nocode_desc:  "собери шаблон промпта визуально, без редактирования кода.",
+      pm_label:          "Промпт блоки",
+      pm_add_prepend:    "+ В начало",
+      pm_add_append:     "+ В конец",
+      pm_prepend_word:   "Prepend",
+      pm_prepend_desc:   "вставляется в начало массива messages",
+      pm_append_word:    "Append",
+      pm_append_desc:    "вставляется в конец (после последнего сообщения пользователя)",
+      pm_empty:          'Блоков нет. Добавьте блок <strong>В начало</strong> или <strong>В конец</strong>.',
+      pm_block_placeholder: "Введите содержимое сообщения...",
+      urls_label:        "Сгенерированные URL прокси",
+      urls_hint:         "Скопируйте URL для вашего AI клиента и вставьте как custom API endpoint.",
+      urls_janitor_label:"JanitorAI (поле Custom API URL)",
+      urls_silly_label:  "SillyTavern (API Base URL)",
+      copy_btn:          "Копировать",
+      copy_done:         "✓ Скопировано",
+      setup_guide:       "Инструкция по настройке",
+      guide_janitor:     "<li>Откройте JanitorAI → Settings → API</li><li>Выберите <strong>OpenAI</strong> как провайдер</li><li>Вставьте URL выше в поле <strong>Custom API URL</strong></li><li>В поле API Key введите любое значение</li>",
+      guide_silly:       "<li>Откройте ST → API Connections</li><li>Выберите <strong>OpenAI Compatible</strong></li><li>Вставьте URL в поле <strong>Custom Endpoint (Base URL)</strong></li><li>Введите API ключ при необходимости</li>",
+      no_url_notice:     'Введите upstream URL выше и нажмите <strong class="text-gray-300">Сохранить</strong>, чтобы получить адрес прокси.',
+      footer_line1:      "Настройки хранятся локально в браузере. Используйте Экспорт для резервной копии и Импорт для восстановления на другом устройстве.",
+      footer_line2:      "Upstream URL закодирован прямо в ссылке — серверное хранилище не нужно.",
+      toast_imported:    "✓ Конфигурация импортирована",
+      toast_error:       "✗ Некорректный JSON файл",
+    }
+  };
+
+  // ============================================================
+  // State
+  // ============================================================
+  const LS_URL    = 'rerouter_upstream';
+  const LS_MODE   = 'rerouter_mode';
+  const LS_BLOCKS = 'rerouter_blocks';
+  const LS_LANG   = 'rerouter_lang';
+
+  let lang = localStorage.getItem(LS_LANG) || 'en';
+
+  let state = {
+    upstream: localStorage.getItem(LS_URL)    || '',
+    mode:     localStorage.getItem(LS_MODE)   || 'base',
+    blocks:   JSON.parse(localStorage.getItem(LS_BLOCKS) || '[]'),
+  };
+
+  // ============================================================
+  // i18n
+  // ============================================================
+  function t(key) { return T[lang][key] || T['en'][key] || key; }
+
+  function applyTranslations() {
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      el.textContent = t(el.getAttribute('data-i18n'));
+    });
+    document.querySelectorAll('[data-i18n-html]').forEach(el => {
+      el.innerHTML = t(el.getAttribute('data-i18n-html'));
+    });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+      el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+    });
+    // Lang buttons
+    const btnEn = document.getElementById('lang-en');
+    const btnRu = document.getElementById('lang-ru');
+    if (btnEn && btnRu) {
+      btnEn.style.background = lang === 'en' ? '#7c3aed' : 'transparent';
+      btnEn.style.color      = lang === 'en' ? '#fff'    : '#9ca3af';
+      btnRu.style.background = lang === 'ru' ? '#7c3aed' : 'transparent';
+      btnRu.style.color      = lang === 'ru' ? '#fff'    : '#9ca3af';
+    }
+  }
+
+  function setLang(l) {
+    lang = l;
+    localStorage.setItem(LS_LANG, l);
+    applyTranslations();
+    renderBlocks(); // re-render blocks (placeholders change)
+  }
+
+  // ============================================================
+  // Base64url
+  // ============================================================
+  function b64encode(str) {
+    return btoa(unescape(encodeURIComponent(str)))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  // ============================================================
+  // Upstream URL
+  // ============================================================
+  function saveAndRefresh() {
+    const val = document.getElementById('upstream-url').value.trim();
+    state.upstream = val;
+    localStorage.setItem(LS_URL, val);
+    refresh();
+  }
+
+  // ============================================================
+  // Mode
+  // ============================================================
+  function setMode(mode) {
+    state.mode = mode;
+    localStorage.setItem(LS_MODE, mode);
+    refresh();
+  }
+
+  // ============================================================
+  // Blocks
+  // ============================================================
+  function saveBlocks() {
+    localStorage.setItem(LS_BLOCKS, JSON.stringify(state.blocks));
+  }
+
+  function addBlock(position) {
+    state.blocks.push({ id: Date.now(), position, role: 'system', content: '' });
+    saveBlocks();
+    renderBlocks();
+    refreshUrls();
+  }
+
+  function removeBlock(id) {
+    state.blocks = state.blocks.filter(b => b.id !== id);
+    saveBlocks();
+    renderBlocks();
+    refreshUrls();
+  }
+
+  function moveBlock(id, dir) {
+    const idx = state.blocks.findIndex(b => b.id === id);
+    if (idx < 0) return;
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= state.blocks.length) return;
+    [state.blocks[idx], state.blocks[newIdx]] = [state.blocks[newIdx], state.blocks[idx]];
+    saveBlocks();
+    renderBlocks();
+    refreshUrls();
+  }
+
+  function updateBlock(id, field, value) {
+    const b = state.blocks.find(b => b.id === id);
+    if (b) { b[field] = value; saveBlocks(); refreshUrls(); }
+  }
+
+  function renderBlocks() {
+    const list  = document.getElementById('blocks-list');
+    const empty = document.getElementById('blocks-empty');
+    if (!list) return;
+
+    if (state.blocks.length === 0) {
+      list.innerHTML = '';
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+
+    list.innerHTML = state.blocks.map((b, i) => {
+      const isFirst = i === 0;
+      const isLast  = i === state.blocks.length - 1;
+      const isPre   = b.position === 'prepend';
+      const bgColor = isPre ? '#0d1a2e' : '#1a0d2e';
+      const badge   = isPre
+        ? `<span class="text-xs px-2 py-0.5 rounded font-semibold" style="background:#1e3a5f;color:#93c5fd;">↑ ${t('pm_prepend_word').toLowerCase()}</span>`
+        : `<span class="text-xs px-2 py-0.5 rounded font-semibold" style="background:#3b1f5e;color:#c4b5fd;">↓ ${t('pm_append_word').toLowerCase()}</span>`;
+
+      const roleOpts = ['system','user','assistant'].map(r =>
+        `<option value="${r}" ${b.role === r ? 'selected' : ''}>${r}</option>`
+      ).join('');
+
+      return `
+        <div class="block-card rounded-xl p-4 space-y-3" style="background:${bgColor};">
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
+              ${badge}
+              <select
+                class="text-xs px-2 py-1 rounded-lg text-white outline-none focus:ring-1"
+                style="background:#111218; border:1px solid #2a2b38;"
+                onchange="updateBlock(${b.id}, 'role', this.value)"
+              >${roleOpts}</select>
+            </div>
+            <div class="flex items-center gap-1">
+              <button onclick="moveBlock(${b.id}, -1)" ${isFirst ? 'disabled' : ''} class="w-7 h-7 rounded flex items-center justify-center disabled:opacity-20 transition-colors hover:text-white" style="background:#111218; color:#6b7280;">▲</button>
+              <button onclick="moveBlock(${b.id},  1)" ${isLast  ? 'disabled' : ''} class="w-7 h-7 rounded flex items-center justify-center disabled:opacity-20 transition-colors hover:text-white" style="background:#111218; color:#6b7280;">▼</button>
+              <button onclick="removeBlock(${b.id})" class="w-7 h-7 rounded flex items-center justify-center transition-colors" style="background:#111218; color:#ef4444;">✕</button>
+            </div>
+          </div>
+          <textarea
+            rows="4"
+            placeholder="${t('pm_block_placeholder')}"
+            class="w-full rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 outline-none focus:ring-2"
+            style="background:#111218; border:1px solid #2a2b38;"
+            oninput="updateBlock(${b.id}, 'content', this.value)"
+          >${b.content}</textarea>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ============================================================
+  // URL Generation
+  // ============================================================
+  function buildConfig() {
+    if (state.mode === 'base') return { mode: 'base' };
+    return {
+      mode: 'full',
+      prepend_blocks: state.blocks.filter(b => b.position === 'prepend').map(b => ({ role: b.role, content: b.content })),
+      append_blocks:  state.blocks.filter(b => b.position === 'append').map(b => ({ role: b.role, content: b.content })),
+    };
+  }
+
+  function refreshUrls() {
+    const section = document.getElementById('urls-section');
+    const notice  = document.getElementById('no-url-notice');
+    if (!state.upstream) {
+      section.classList.add('hidden');
+      notice.classList.remove('hidden');
+      return;
+    }
+    section.classList.remove('hidden');
+    notice.classList.add('hidden');
+    const base = window.location.origin;
+    const t_   = b64encode(state.upstream);
+    const c    = b64encode(JSON.stringify(buildConfig()));
+    document.getElementById('url-janitor').textContent = `${base}/janitorai?t=${t_}&c=${c}`;
+    document.getElementById('url-silly').textContent   = `${base}/sillytavern?t=${t_}&c=${c}`;
+  }
+
+  // ============================================================
+  // Copy button
+  // ============================================================
+  function copyUrl(elId, btn) {
+    const text = document.getElementById(elId).textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      const orig = btn.textContent;
+      btn.textContent = t('copy_done');
+      btn.style.background = '#14532d';
+      setTimeout(() => { btn.textContent = orig; btn.style.background = '#2a2b38'; }, 1500);
+    });
+  }
+
+  // ============================================================
+  // Export / Import
+  // ============================================================
+  function exportConfig() {
+    const payload = {
+      version: 1,
+      exported_at: new Date().toISOString(),
+      upstream: state.upstream,
+      mode: state.mode,
+      blocks: state.blocks,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = 'rerouter-config.json'; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importConfig() {
+    document.getElementById('import-file-input').value = '';
+    document.getElementById('import-file-input').click();
+  }
+
+  function handleImportFile(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (typeof data !== 'object' || data === null) throw new Error();
+        if (typeof data.upstream === 'string') { state.upstream = data.upstream; localStorage.setItem(LS_URL, state.upstream); }
+        if (data.mode === 'base' || data.mode === 'full') { state.mode = data.mode; localStorage.setItem(LS_MODE, state.mode); }
+        if (Array.isArray(data.blocks)) {
+          state.blocks = data.blocks.map(b => ({
+            id:       b.id || Date.now() + Math.random(),
+            position: b.position === 'append' ? 'append' : 'prepend',
+            role:     ['system','user','assistant'].includes(b.role) ? b.role : 'system',
+            content:  typeof b.content === 'string' ? b.content : '',
+          }));
+          saveBlocks();
+        }
+        refresh();
+        showToast(t('toast_imported'));
+      } catch { showToast(t('toast_error'), true); }
+    };
+    reader.readAsText(file);
+  }
+
+  function showToast(msg, isError = false) {
+    const ex = document.getElementById('toast');
+    if (ex) ex.remove();
+    const el = document.createElement('div');
+    el.id = 'toast';
+    el.textContent = msg;
+    el.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;font-size:13px;font-family:monospace;color:#fff;z-index:9999;transition:opacity .3s;background:${isError?'#7f1d1d':'#14532d'};border:1px solid ${isError?'#991b1b':'#166534'};`;
+    document.body.appendChild(el);
+    setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 2500);
+  }
+
+  // ============================================================
+  // Main refresh
+  // ============================================================
+  function refresh() {
+    document.getElementById('upstream-url').value = state.upstream;
+    applyTranslations();
+
+    const btnBase  = document.getElementById('tab-base');
+    const btnFull  = document.getElementById('tab-full');
+    const descBase = document.getElementById('desc-base');
+    const descFull = document.getElementById('desc-full');
+    const pm       = document.getElementById('prompt-manager');
+
+    if (state.mode === 'base') {
+      btnBase.style.background = '#7c3aed'; btnBase.style.color = '#fff'; btnBase.style.borderColor = 'transparent';
+      btnFull.style.background = 'transparent'; btnFull.style.color = '#9ca3af'; btnFull.style.borderColor = '#2a2b38';
+      descBase.classList.remove('hidden'); descFull.classList.add('hidden');
+      pm.classList.add('hidden');
+    } else {
+      btnFull.style.background = '#7c3aed'; btnFull.style.color = '#fff'; btnFull.style.borderColor = 'transparent';
+      btnBase.style.background = 'transparent'; btnBase.style.color = '#9ca3af'; btnBase.style.borderColor = '#2a2b38';
+      descFull.classList.remove('hidden'); descBase.classList.add('hidden');
+      pm.classList.remove('hidden');
+      pm.classList.add('fade-in');
+      renderBlocks();
+    }
+
+    refreshUrls();
+  }
+
+  // ============================================================
+  // Init
+  // ============================================================
+  document.addEventListener('DOMContentLoaded', () => {
+    refresh();
+    document.getElementById('upstream-url').addEventListener('keydown', e => {
+      if (e.key === 'Enter') saveAndRefresh();
+    });
+  });
+  </script>
+</body>
+</html>
