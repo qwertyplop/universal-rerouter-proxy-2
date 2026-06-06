@@ -25,8 +25,17 @@
     body { background: #111218; }
     .copy-btn { transition: all .15s; }
     .copy-btn:active { transform: scale(.96); }
-    .block-card { border: 1px solid #2a2b38; transition: border-color .15s; }
-    .block-card:hover { border-color: #4c1d95; }
+    .block-card { border: 1px solid #2a2b38; transition: border-color .15s, background .15s; }
+    .block-card:hover { border-color: #6b21a8; }
+    /* Role colours — border + subtle role-tinted bg */
+    .block-card.role-system  { border-color: #3b82f6; background: linear-gradient(135deg, rgba(59,130,246,.10), #111218 60%); }
+    .block-card.role-user    { border-color: #eab308; background: linear-gradient(135deg, rgba(234,179,8,.10),  #111218 60%); }
+    .block-card.role-assistant { border-color: #ef4444; background: linear-gradient(135deg, rgba(239,68,68,.10),  #111218 60%); }
+    /* Position indicator (prepend/append) — prefix arrow in header, subtle corner mark */
+    .position-arrow { font-size: 13px; font-weight: 700; opacity: .55; user-select: none; padding: 0 4px; }
+    .block-card.position-prepend::before  { content: "↑ top";    position: absolute; right: 12px; top: 8px;  font-size: 9px; letter-spacing: .08em; color: #93c5fd; opacity: .6; text-transform: uppercase; }
+    .block-card.position-append::after   { content: "↓ bottom"; position: absolute; right: 12px; top: 8px;  font-size: 9px; letter-spacing: .08em; color: #c4b5fd; opacity: .6; text-transform: uppercase; }
+    .block-card { position: relative; }
     select option { background: #1a1b23; }
     textarea { resize: vertical; }
     ::-webkit-scrollbar { width: 6px; }
@@ -546,20 +555,25 @@
   function updateBlock(group, id, field, value) {
     const arr = group === 'prepend' ? state.prependBlocks : state.appendBlocks;
     const b = arr.find(b => b.id === id);
-    if (b) { b[field] = value; saveBlocks(); refreshUrls(); }
+    if (!b) return;
+    b[field] = value;
+    saveBlocks();
+    refreshUrls();
+    if (field === 'role') renderBlocks();  // role changes the border colour, re-render
   }
 
   function renderBlockCard(b, group, i, total) {
     const isPre  = group === 'prepend';
-    const bg     = isPre ? '#0d1a2e' : '#1a0d2e';
-    const border = isPre ? '#1e3a5f' : '#3b1f5e';
+    const arrow  = isPre ? '↑' : '↓';
     const roleOpts = ['system','user','assistant'].map(r =>
       `<option value="${r}" ${b.role === r ? 'selected' : ''}>${r}</option>`
     ).join('');
+    const role = (b.role || 'system');
     const nameEsc = (b.name || '').replace(/"/g, '&quot;');
     return `
-      <div class="block-card rounded-xl p-3.5 space-y-2" style="background:${bg}; border:1px solid ${border}30;">
+      <div class="block-card rounded-xl p-3.5 space-y-2 role-${role} position-${group}">
         <div class="flex items-center gap-2">
+          <span class="position-arrow" title="${isPre ? 'prepend' : 'append'}">${arrow}</span>
           <input
             type="text"
             placeholder="${t('pm_label_placeholder')}"
