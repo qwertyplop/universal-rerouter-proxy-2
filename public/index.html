@@ -167,7 +167,7 @@
           style="background:#0d0e14; border:1px solid #2a2b38;"
           data-i18n-placeholder="upstream_placeholder"
         />
-        <button onclick="saveAndRefresh()" class="px-4 py-2.5 rounded-lg text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-95" style="background:#7c3aed;" data-i18n="save_btn"></button>
+        <button onclick="saveAll()" class="px-4 py-2.5 rounded-lg text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-95" style="background:#7c3aed;" data-i18n="save_btn"></button>
       </div>
       <p class="text-xs text-gray-500" data-i18n-html="upstream_hint"></p>
     </section>
@@ -320,10 +320,6 @@
       <div class="flex items-center gap-2 text-xs">
         <button onclick="fetchLogs()" class="px-2.5 py-1 rounded font-semibold transition-all hover:opacity-80" style="background:#1a1b23; border:1px solid #2a2b38; color:#9ca3af;" data-i18n="logs_refresh"></button>
         <button onclick="clearLogsServer()" class="px-2.5 py-1 rounded font-semibold transition-all hover:opacity-80" style="background:#1a1b23; border:1px solid #2a2b38; color:#9ca3af;" data-i18n="logs_clear"></button>
-        <label class="flex items-center gap-1.5 ml-auto cursor-pointer" style="color:#9ca3af;">
-          <input type="checkbox" id="logs-autorefresh" checked class="accent-purple-500" />
-          <span data-i18n="logs_auto"></span>
-        </label>
       </div>
     </div>
 
@@ -520,11 +516,16 @@
   // ============================================================
   // Upstream URL
   // ============================================================
-  function saveAndRefresh() {
+  function saveAll() {
     const val = document.getElementById('upstream-url').value.trim();
-    state.upstream = val;
-    localStorage.setItem(LS_URL, val);
+    if (val) {
+      state.upstream = val;
+      localStorage.setItem(LS_URL, val);
+    }
+    setLogsEnabled(document.getElementById('logs-enabled-toggle').checked);
     refresh();
+    refreshUrls();
+    showToast(t('toast_saved'));
   }
 
   // ============================================================
@@ -674,7 +675,6 @@
   state.logs = [];
   state.logsPanelOpen = false;
   state.expandedLogs = new Set();
-  let logsTimer = null;
 
   function setLogsEnabled(on) {
     state.logsEnabled = !!on;
@@ -687,7 +687,7 @@
      }
 
   function toggleLogsPanel() {
-    const panel    = document.getElementById('logs-panel');
+    const panel = document.getElementById('logs-panel');
     const backdrop = document.getElementById('logs-backdrop');
     if (!panel) return;
     const isOpen = panel.classList.contains('open');
@@ -695,25 +695,12 @@
       panel.classList.remove('open');
       backdrop.classList.remove('open');
       state.logsPanelOpen = false;
-      stopLogsAutoRefresh();
     } else {
       panel.classList.add('open');
       backdrop.classList.add('open');
       state.logsPanelOpen = true;
       fetchLogs();
-      startLogsAutoRefresh();
     }
-  }
-
-  function startLogsAutoRefresh() {
-    stopLogsAutoRefresh();
-    const cb = document.getElementById('logs-autorefresh');
-    if (cb && cb.checked) {
-      logsTimer = setInterval(() => { if (state.logsPanelOpen) fetchLogs(); }, 2000);
-    }
-  }
-  function stopLogsAutoRefresh() {
-    if (logsTimer) { clearInterval(logsTimer); logsTimer = null; }
   }
 
   async function fetchLogs() {
@@ -1043,10 +1030,12 @@
       pm.classList.remove('hidden');
       pm.classList.add('fade-in');
       renderBlocks();
-    }
+        }
 
-    refreshUrls();
-  }
+        // Apply translations after mode / URL / blocks change
+        applyTranslations();
+        updateLogsCount();
+      }
 
   // ============================================================
   // Init
@@ -1054,7 +1043,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     refresh();
     document.getElementById('upstream-url').addEventListener('keydown', e => {
-      if (e.key === 'Enter') saveAndRefresh();
+      if (e.key === 'Enter') saveAll();
     });
     const tgl = document.getElementById('logs-enabled-toggle');
     if (tgl) tgl.checked = state.logsEnabled;
