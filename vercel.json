@@ -4,9 +4,8 @@
     { "src": "api/proxy.py", "use": "@vercel/python" }
   ],
   "routes": [
+    { "handle": "filesystem" },
     { "src": "/(janitorai|sillytavern|health|api/proxy)(/.*)?", "dest": "api/proxy.py" },
-    { "src": "/(.+\\.\\w+)$", "dest": "/$1" },
-    { "src": "/", "dest": "/index.html" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
