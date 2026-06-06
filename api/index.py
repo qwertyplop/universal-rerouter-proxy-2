@@ -178,35 +178,40 @@ def serve_static(path):
 
 
 def handler(request):
-    url = request.get('url', '/')
-    parsed = urllib.parse.urlparse(url)
-    path = parsed.path
-    query_string = parsed.query
-    method = request.get('method', 'GET')
-    headers = request.get('headers', {})
-    body = request.get('body')
+ url = request.get('url', '/')
+ parsed = urllib.parse.urlparse(url)
+ path = parsed.path
+ query_string = parsed.query
+ method = request.get('method', 'GET')
+ headers = request.get('headers', {})
+ body = request.get('body')
 
-    if method == 'OPTIONS':
-        return {
-            'status': 200,
-            'headers': {
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, PATCH',
-                'Access-Control-Allow-Headers': '*'
-            },
-            'body': ''
-        }
+ if method == 'OPTIONS':
+  return {
+   'status': 200,
+   'headers': {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, PATCH',
+    'Access-Control-Allow-Headers': '*'
+   },
+   'body': ''
+  }
 
-    api_prefixes = ('/janitorai', '/sillytavern', '/health')
-    is_api = path in api_prefixes or path.startswith(tuple(p + '/' for p in api_prefixes))
+ api_prefixes = ('/janitorai', '/sillytavern', '/health')
+ is_api = path in api_prefixes or path.startswith(tuple(p + '/' for p in api_prefixes))
 
-    if is_api:
-        result = proxy_request(path, query_string, headers, method, body)
-    else:
-        result = serve_static(path)
+ if is_api:
+  result = proxy_request(path, query_string, headers, method, body)
+ else:
+  result = serve_static(path)
 
-    result['headers'].setdefault('Access-Control-Allow-Origin', '*')
-    result['headers'].setdefault('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH')
-    result['headers'].setdefault('Access-Control-Allow-Headers', '*')
+ result['headers'].setdefault('Access-Control-Allow-Origin', '*')
+ result['headers'].setdefault('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH')
+ result['headers'].setdefault('Access-Control-Allow-Headers', '*')
 
-    return result
+ return result
+
+
+__all__ = ['handler', 'app']
+
+app = handler
