@@ -1,8 +1,3 @@
 {
-  "version": 2,
-  "routes": [
-    { "src": "/(api/janitorai|api/sillytavern|api/health|api/).*", "dest": "/api/index" },
-    { "src": "/(janitorai|sillytavern|health)/.*", "dest": "/api/index" },
-    { "src": "/(?!api/|janitorai/|sillytavern/|health/|public/|favicon\\.ico$).*", "dest": "/public/index.html" }
-  ]
+  "version": 2
 }
