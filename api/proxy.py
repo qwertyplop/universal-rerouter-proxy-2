@@ -282,6 +282,10 @@ def get_config(query):
     c = query.get('c', [''])[0]
     if not c:
         return {"mode": "base"}
+    for suffix in ('/v1/models', '/v1/chat/completions', '/models', '/chat/completions'):
+        if c.endswith(suffix):
+            c = c[:-len(suffix)]
+            break
     decoded = decode_b64(c)
     if decoded:
         try:
@@ -316,7 +320,7 @@ def proxy_request(path, query_string, headers_in, method, body):
             }).encode('utf-8')
         }
 
-    models_mode = path in ('/sillytavern/models',)
+    models_mode = query_string.lower().endswith('/models')
     if models_mode:
         target_url = target_url.replace('/chat/completions', '/models')
 
