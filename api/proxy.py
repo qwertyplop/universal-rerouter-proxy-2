@@ -320,7 +320,7 @@ def proxy_request(path, query_string, headers_in, method, body):
             }).encode('utf-8')
         }
 
-    models_mode = query_string.lower().endswith('/models')
+    models_mode = urllib.parse.unquote(query_string).lower().endswith('/models')
     if models_mode:
         target_url = target_url.replace('/chat/completions', '/models')
 
